@@ -1,0 +1,86 @@
+# --- Dependencias ---
+node_modules/
+.pnp
+.pnp.js
+jspm_packages/
+
+# --- Build / salida de Vite ---
+dist/
+dist-ssr/
+build/
+*.local
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Cachés de herramientas ---
+.cache/
+.temp/
+.tmp/
+.vite/
+node_modules/.vite/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+.rollup.cache/
+.turbo/
+
+# --- Tests / cobertura ---
+coverage/
+*.lcov
+.nyc_output/
+/playwright-report/
+/playwright/.cache/
+/test-results/
+/cypress/screenshots/
+/cypress/videos/
+
+# --- Variables de entorno (claves de Firebase, endpoints, etc.) ---
+.env
+.env.*
+!.env.example
+
+# --- Firebase ---
+.firebase/
+firebase-debug.log*
+firebase-debug.*.log*
+firestore-debug.log*
+database-debug.log*
+pubsub-debug.log*
+ui-debug.log*
+firebase-export-*/
+.runtimeconfig.json
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+
+# --- Editores / IDE ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- Sistema operativo ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# --- Configuración local de agentes / asistentes ---
+CLAUDE.md
+CLAUDE.local.md
+.claude/
