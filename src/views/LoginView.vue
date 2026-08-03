@@ -3,6 +3,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import BrandMark from '@/components/BrandMark.vue'
 import BrandShowcase from '@/components/BrandShowcase.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const { signInWithGoogle, isBusy, error } = useAuth()
 const route = useRoute()
@@ -26,26 +27,22 @@ async function onSignIn() {
       <!-- En movil no hay panel derecho, asi que el halo vive aqui para que
            la pantalla no sea un negro plano. -->
       <div
-        class="drift pointer-events-none absolute -top-32 -right-24 size-96 rounded-full bg-magenta-500/20 blur-[100px] lg:hidden"
+        class="drift pointer-events-none absolute -top-32 -right-24 size-96 rounded-full bg-accent/20 blur-[100px] lg:hidden"
         aria-hidden="true"
       />
 
-      <header class="relative flex items-center justify-between">
+      <header class="relative flex items-center justify-between gap-3">
         <BrandMark class="text-xl" />
-        <span
-          class="rounded-full border border-ink-800 px-3 py-1 text-[11px] tracking-wide text-slate-400"
-        >
-          Acceso
-        </span>
+        <ThemeToggle />
       </header>
 
       <div class="relative flex flex-1 items-center justify-center py-12">
         <div class="w-full max-w-sm">
           <h1 class="rise font-display text-4xl leading-[1.15] tracking-tight text-balance">
             Entra en tu
-            <span class="text-magenta-400">biblioteca</span>
+            <span class="text-accent">biblioteca</span>
           </h1>
-          <p class="rise mt-4 text-sm leading-relaxed text-slate-400" style="animation-delay: 60ms">
+          <p class="rise mt-4 text-sm leading-relaxed text-muted" style="animation-delay: 60ms">
             Sin contraseñas. Usamos tu cuenta de Google para saber cuáles son tus listas.
           </p>
 
@@ -53,7 +50,7 @@ async function onSignIn() {
             type="button"
             :disabled="isBusy"
             :aria-busy="isBusy"
-            class="rise group mt-9 flex w-full cursor-pointer items-center justify-center gap-3 rounded-full border border-ink-800 bg-ink-900/70 px-5 py-3.5 text-sm font-medium transition-all duration-300 hover:border-magenta-500/60 hover:bg-ink-850 hover:shadow-[0_0_32px_-8px] hover:shadow-magenta-500/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-magenta-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-none"
+            class="rise group mt-9 flex w-full cursor-pointer items-center justify-center gap-3 rounded-full border border-line bg-surface/70 px-5 py-3.5 text-sm font-medium transition-all duration-300 hover:border-accent/60 hover:bg-surface-2 hover:shadow-[0_0_32px_-8px] hover:shadow-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-none"
             style="animation-delay: 120ms"
             @click="onSignIn"
           >
@@ -81,13 +78,13 @@ async function onSignIn() {
           <p
             v-if="error"
             role="alert"
-            class="mt-4 rounded-xl border border-red-900/60 bg-red-950/40 px-4 py-3 text-xs leading-relaxed text-red-300"
+            class="mt-4 rounded-xl border border-red-900/40 bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400"
           >
             {{ error }}
           </p>
 
           <p
-            class="rise mt-6 text-center text-xs leading-relaxed text-slate-500"
+            class="rise mt-6 text-center text-xs leading-relaxed text-faint"
             style="animation-delay: 180ms"
           >
             Al continuar guardamos únicamente tu nombre, avatar y correo para identificarte dentro
@@ -96,7 +93,7 @@ async function onSignIn() {
         </div>
       </div>
 
-      <footer class="relative text-center text-xs leading-relaxed text-slate-600">
+      <footer class="relative text-center text-xs leading-relaxed text-faint">
         AnimeDB es un catálogo de consulta: no aloja ni reproduce contenido.
         <span class="block">Metadatos de AniList.</span>
       </footer>

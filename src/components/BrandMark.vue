@@ -5,6 +5,6 @@ withDefaults(defineProps<{ as?: string }>(), { as: 'span' })
 
 <template>
   <component :is="as" class="font-display tracking-tight select-none">
-    Anime<span class="text-magenta-400">DB</span>
+    Anime<span class="text-accent">DB</span>
   </component>
 </template>
