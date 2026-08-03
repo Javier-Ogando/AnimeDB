@@ -1,0 +1,93 @@
+/* Tipografias autoalojadas: sin peticiones a Google Fonts en runtime.
+   Pareja mincho (display) + gothic (texto), como se componen las
+   portadas editoriales japonesas. Solo subconjunto latino. */
+@import '@fontsource/shippori-mincho/latin-500.css';
+@import '@fontsource/shippori-mincho/latin-700.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-400.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-500.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-700.css';
+@import 'tailwindcss';
+
+@theme {
+  /* --- tipografia --- */
+  --font-display: 'Shippori Mincho', 'Hiragino Mincho ProN', serif;
+  --font-sans: 'Zen Kaku Gothic New', ui-sans-serif, system-ui, sans-serif;
+
+  /* --- tinta: negro con derivada violeta, no gris neutro --- */
+  --color-ink-950: oklch(0.145 0.014 305);
+  --color-ink-900: oklch(0.19 0.016 305);
+  --color-ink-850: oklch(0.225 0.018 305);
+  --color-ink-800: oklch(0.27 0.02 305);
+  --color-ink-700: oklch(0.35 0.022 305);
+
+  /* --- acento unico: el magenta del wordmark --- */
+  --color-magenta-300: oklch(0.83 0.12 320);
+  --color-magenta-400: oklch(0.75 0.16 320);
+  --color-magenta-500: oklch(0.66 0.19 320);
+  --color-magenta-600: oklch(0.55 0.2 320);
+
+  /* contrapunto frio, solo para dar profundidad a los halos */
+  --color-ice-400: oklch(0.78 0.07 230);
+
+  /* --- movimiento --- */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-950 font-sans text-slate-100 antialiased;
+}
+
+/* Grano fino sobre los degradados: evita el look de "gradiente plano". */
+@utility grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Entrada escalonada: un solo momento coreografiado al cargar.
+   Anima 'translate' y no 'transform': las utilidades de rotacion y traslacion
+   de Tailwind escriben en 'transform', y con fill-mode both el estado final
+   'transform: none' borraria la rotacion del mazo de cards. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+  to {
+    opacity: 1;
+    translate: none;
+  }
+}
+
+/* Misma razon: los halos usan scale/translate independientes. */
+@keyframes drift {
+  0%,
+  100% {
+    translate: 0 0;
+    scale: 1;
+  }
+  50% {
+    translate: 2% -3%;
+    scale: 1.06;
+  }
+}
+
+@utility rise {
+  animation: rise 0.75s var(--ease-out-expo) both;
+}
+
+@utility drift {
+  animation: drift 18s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
