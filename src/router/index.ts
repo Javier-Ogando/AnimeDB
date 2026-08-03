@@ -20,7 +20,10 @@ const routes: RouteRecordRaw[] = [
 ]
 
 export const router = createRouter({
-  history: createWebHistory(),
+  // BASE_URL lo inyecta Vite desde `base`: en GitHub Pages la app vive en
+  // /AnimeDB/, y sin esto el router creeria que /AnimeDB/login es una ruta
+  // desconocida.
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
 
