@@ -5,6 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AnimeDB</title>
+    <script>
+      // Se aplica el tema ANTES del primer pintado: si esperase a que arranque
+      // Vue, al recargar en modo claro se veria un fogonazo oscuro.
+      // Debe seguir en sintonia con src/composables/useTheme.ts.
+      ;(function () {
+        try {
+          var saved = localStorage.getItem('animedb-theme')
+          var prefersLight =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+          document.documentElement.dataset.theme =
+            saved === 'light' || saved === 'dark' ? saved : prefersLight ? 'light' : 'dark'
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

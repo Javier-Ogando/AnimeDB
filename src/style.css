@@ -8,19 +8,16 @@
 @import '@fontsource/zen-kaku-gothic-new/latin-700.css';
 @import 'tailwindcss';
 
+/* El tema lo manda data-theme en <html>, no prefers-color-scheme, porque el
+   usuario puede forzarlo con el boton. Esto habilita utilidades dark:*. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 @theme {
   /* --- tipografia --- */
   --font-display: 'Shippori Mincho', 'Hiragino Mincho ProN', serif;
   --font-sans: 'Zen Kaku Gothic New', ui-sans-serif, system-ui, sans-serif;
 
-  /* --- tinta: negro con derivada violeta, no gris neutro --- */
-  --color-ink-950: oklch(0.145 0.014 305);
-  --color-ink-900: oklch(0.19 0.016 305);
-  --color-ink-850: oklch(0.225 0.018 305);
-  --color-ink-800: oklch(0.27 0.02 305);
-  --color-ink-700: oklch(0.35 0.022 305);
-
-  /* --- acento unico: el magenta del wordmark --- */
+  /* --- acento: el magenta del wordmark, en varias intensidades --- */
   --color-magenta-300: oklch(0.83 0.12 320);
   --color-magenta-400: oklch(0.75 0.16 320);
   --color-magenta-500: oklch(0.66 0.19 320);
@@ -33,12 +30,78 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-html {
+/*
+ * Tokens semanticos. Los componentes usan SIEMPRE estos (bg-surface, text-muted)
+ * y nunca un color literal, para que cambiar de tema sea cambiar estos valores.
+ *
+ * Se escriben con oklch literal y no con var(--color-ink-*) a proposito:
+ * Tailwind solo emite las variables de @theme que detecta usadas por alguna
+ * utilidad, y una referencia desde aqui no cuenta como uso.
+ */
+:root,
+:root[data-theme='dark'] {
   color-scheme: dark;
+
+  /* Tinta con deriva violeta: un negro neutro se ve muerto junto al magenta. */
+  --canvas: oklch(0.145 0.014 305);
+  --surface: oklch(0.19 0.016 305);
+  --surface-2: oklch(0.225 0.018 305);
+  --line: oklch(0.27 0.02 305);
+  --line-strong: oklch(0.35 0.022 305);
+  --body: oklch(0.96 0.005 300);
+  --muted: oklch(0.72 0.02 300);
+  --faint: oklch(0.55 0.02 300);
+  --accent: oklch(0.75 0.16 320);
+  --accent-strong: oklch(0.66 0.19 320);
+  --overlay: oklch(1 0 0 / 0.07);
+  --shade: oklch(0 0 0 / 0.55);
+}
+
+/*
+ * Modo claro en papel calido, no blanco hueso: el fondo tira a beige
+ * (croma 0.016 en hue 85) y el texto es una tinta marron oscura en vez de
+ * negro, para que no deslumbre con poca luz.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --canvas: oklch(0.955 0.016 85);
+  --surface: oklch(0.978 0.01 85);
+  --surface-2: oklch(0.925 0.02 85);
+  --line: oklch(0.885 0.022 82);
+  --line-strong: oklch(0.82 0.028 80);
+  --body: oklch(0.32 0.022 60);
+  --muted: oklch(0.5 0.022 60);
+  --faint: oklch(0.58 0.02 60);
+  /* El magenta claro no contrasta sobre papel: se baja dos pasos. */
+  --accent: oklch(0.55 0.2 320);
+  --accent-strong: oklch(0.47 0.19 320);
+  --overlay: oklch(0.32 0.022 60 / 0.1);
+  --shade: oklch(0.45 0.04 60 / 0.12);
+}
+
+/* `inline` hace que las utilidades emitan var(--surface) directamente, de modo
+   que el valor se resuelve en cada elemento y el cambio de tema es inmediato. */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-overlay: var(--overlay);
+  --color-shade: var(--shade);
 }
 
 body {
-  @apply bg-ink-950 font-sans text-slate-100 antialiased;
+  @apply bg-canvas font-sans text-body antialiased;
+  transition:
+    background-color 0.35s var(--ease-out-expo),
+    color 0.35s var(--ease-out-expo);
 }
 
 /* Grano fino sobre los degradados: evita el look de "gradiente plano". */
