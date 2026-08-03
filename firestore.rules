@@ -1,0 +1,135 @@
+rules_version = '2';
+
+// Reglas de seguridad de AnimeDB.
+// Modelo de datos documentado en docs/data-model.md
+//
+// Principios:
+//  - Nada es publico: todo exige usuario autenticado.
+//  - La pertenencia a una lista 'personal'/'shared' se valida con memberUids
+//    (sin lecturas extra, el array viaja en el propio documento).
+//  - La lista comunitaria es legible por cualquier autenticado; apuntarse es
+//    crear tu propio doc en members/{uid}.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function listData(listId) {
+      return get(/databases/$(database)/documents/lists/$(listId)).data;
+    }
+
+    function isMemberOf(listId) {
+      let l = listData(listId);
+      return isSignedIn() && (
+        l.type == 'community' ||
+        request.auth.uid in l.get('memberUids', [])
+      );
+    }
+
+    function isOwnerOf(listId) {
+      return isSignedIn() && listData(listId).ownerUid == request.auth.uid;
+    }
+
+    // ---------- users ----------
+
+    match /users/{uid} {
+      // Perfiles legibles entre usuarios autenticados: hacen falta para
+      // mostrar quien comparte lista contigo.
+      allow read: if isSignedIn();
+      allow create, update: if isSelf(uid);
+      allow delete: if false;
+    }
+
+    // ---------- media (cache de AniList) ----------
+
+    match /media/{mediaId} {
+      allow read: if isSignedIn();
+      // Cualquier autenticado puede rellenar la cache: son datos publicos
+      // de AniList, no hay nada que proteger.
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    // ---------- lists ----------
+
+    match /lists/{listId} {
+      allow read: if isSignedIn() && (
+        resource.data.type == 'community' ||
+        request.auth.uid in resource.data.get('memberUids', [])
+      );
+
+      // Al crear: te declaras owner y tienes que estar entre los miembros.
+      // Nadie crea listas de tipo 'community' desde la app.
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.auth.uid in request.resource.data.memberUids
+        && request.resource.data.type in ['personal', 'shared'];
+
+      // El owner puede renombrar y gestionar miembros, pero no cambiar el
+      // tipo de la lista ni traspasar la propiedad.
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.type == resource.data.type;
+
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+
+      // ---------- items: la union list <-> media ----------
+
+      match /items/{mediaId} {
+        allow read: if isMemberOf(listId);
+
+        // Quien anade queda registrado como addedBy y no puede falsearlo.
+        allow create: if isMemberOf(listId)
+          && request.resource.data.addedBy == request.auth.uid;
+
+        // Cualquier miembro puede mover el status (es estado del grupo).
+        allow update: if isMemberOf(listId);
+
+        // Borrar: quien lo anadio, o el owner de la lista.
+        allow delete: if isMemberOf(listId) && (
+          resource.data.addedBy == request.auth.uid || isOwnerOf(listId)
+        );
+      }
+
+      // ---------- members: solo para la lista comunitaria ----------
+
+      match /members/{uid} {
+        allow read: if isSignedIn();
+        // Apuntarse y darse de baja es voluntario: solo sobre tu propio doc.
+        allow create, delete: if isSelf(uid);
+        allow update: if false;
+      }
+    }
+
+    // ---------- invites ----------
+
+    match /invites/{token} {
+      // Quien tiene el link puede leer la invitacion para saber a que lista
+      // le lleva. El token es el secreto.
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && isOwnerOf(request.resource.data.listId);
+
+      // Revocar / contar usos: solo quien la creo.
+      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Todo lo no contemplado, denegado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
