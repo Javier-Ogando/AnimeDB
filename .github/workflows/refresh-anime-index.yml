@@ -1,0 +1,42 @@
+name: Refresh anime index
+
+# El indice local de titulos (public/anime-index.json) es lo que permite buscar
+# por subcadena, algo que la API de AniList no sabe hacer. Se regenera de vez en
+# cuando para recoger los estrenos.
+#
+# Mensual y no semanal a proposito: el archivo pesa unos 700 KB y se versiona,
+# asi que cada regeneracion engorda el historial del repositorio.
+on:
+  schedule:
+    - cron: '0 4 1 * *' # el dia 1 de cada mes a las 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Tarda unos 2-3 minutos: son 100 peticiones espaciadas para no chocar
+      # con el limite por minuto de AniList.
+      - name: Regenerar el índice
+        run: npm run build:index
+
+      - name: Commitear si ha cambiado
+        run: |
+          if git diff --quiet -- public/anime-index.json; then
+            echo "El índice no ha cambiado; no hay nada que commitear."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/anime-index.json
+          git commit -m "chore: regenerar el índice de títulos de AniList"
+          git push

@@ -47,7 +47,38 @@ query ($search: String) {
 }
 ```
 
-`search` ya busca sobre los distintos títulos, y en la respuesta se devuelven `english`, `romaji` y `userPreferred` para poder mostrar el que corresponda en cada card. Las peticiones se lanzan con *debounce* y con caché en memoria para respetar el límite de peticiones de AniList (90 req/min).
+`search` ya busca sobre los distintos títulos, y en la respuesta se devuelven `english`, `romaji` y `userPreferred` para poder mostrar el que corresponda en cada card. Las peticiones se lanzan con *debounce*, cancelando la anterior, y con caché en memoria para no gastar el límite de peticiones por minuto.
+
+### Por qué hay además un índice local de títulos
+
+`search` de AniList indexa **palabras completas** y tolera erratas, pero **no hace prefijos ni
+subcadenas**. Comprobado contra la API:
+
+```
+"jobless"  -> 5 resultados (es una palabra del título inglés de Mushoku Tensei)
+"mushoku"  -> 5 resultados
+"musho"    -> 0 resultados      ← no es una palabra de nada
+"frier"    -> 0 resultados
+```
+
+No hay parámetro que lo cambie: se probó con y sin `sort`, y con y sin `type: ANIME`. Y Firestore
+tampoco resolvería esto, porque no tiene `LIKE`/`CONTAINS`: solo permite rangos, que dan búsqueda
+por prefijo, no por subcadena.
+
+La solución es un índice propio, donde `%texto%` es un `includes` de JavaScript:
+
+- `npm run build:index` recorre AniList por popularidad y escribe `public/anime-index.json`
+  (5000 títulos, ~700 KB; es el techo de paginación de AniList por consulta).
+- El buscador lo descarga **en la primera pulsación**, no al abrir la página, y lo deja en memoria.
+- Ordena por calidad de coincidencia: título exacto, empieza por, empieza una palabra
+  (`tensei` en *Mushoku Tensei*), aparece en cualquier posición (`shoku` en *Mushoku*). A igualdad,
+  manda la popularidad.
+- **AniList sigue como respaldo**: si el índice da menos de 5 resultados, se consulta la API y se
+  fusiona, así no se pierde el catálogo de nicho ni los estrenos posteriores al índice.
+- Se refresca con el workflow [`refresh-anime-index.yml`](.github/workflows/refresh-anime-index.yml),
+  mensual, que solo commitea si el archivo ha cambiado.
+
+Si el índice no existe, la aplicación no se rompe: avisa una vez por consola y busca solo contra la API.
 
 ## Modelo de datos (Firestore, propuesta inicial)
 
@@ -71,13 +102,25 @@ Los animes se guardan **por referencia** (`anilistId` + los campos mínimos para
 
 ## Puesta en marcha
 
-Requisitos: Node.js 20+ y un proyecto de Firebase con Authentication (proveedor Google) y Firestore activados.
+Requisito: **Node.js `^20.19` o `>=22.12`** (lo exige Vite 8; con un 20.10 la instalación
+funciona pero el servidor no arranca). Compruébalo con `node -v`.
 
 ```bash
-npm install
+npm ci                 # respeta package-lock.json; npm install podría subir versiones
 cp .env.example .env   # rellena las claves de tu proyecto Firebase
-npm run dev
+npm run dev            # http://localhost:5173
 ```
+
+El `.env` **no está en el repositorio** (lo ignora `.gitignore`), así que hay que crearlo en cada
+equipo. Sin él la app compila, pero al arrancar aborta con un mensaje explícito en la consola del
+navegador en lugar de fallar con un `auth/invalid-api-key` difícil de rastrear.
+
+Los valores salen de la consola de Firebase → *Configuración del proyecto* → *General* → *Tus apps*.
+No son secretos (viajan en el bundle de cualquier app web), así que se pueden pasar por el canal
+interno del equipo; lo que protege los datos son las reglas de Firestore.
+
+El login con Google funciona en local sin configurar nada más: `localhost` viene entre los dominios
+autorizados de Firebase Authentication por defecto.
 
 ### Variables de entorno
 

@@ -4,27 +4,33 @@ import { useAnimeSearch } from '@/composables/useAnimeSearch'
 import MediaCard from './MediaCard.vue'
 import type { MediaSummary } from '@/types/anilist'
 
-const emit = defineEmits<{ select: [media: MediaSummary] }>()
+export type ListDestination = 'personal' | 'shared'
+
+/** Se emite al elegir destino. Todavia sin implementar el guardado. */
+const emit = defineEmits<{ select: [media: MediaSummary, destination: ListDestination] }>()
 
 const { term, results, isLoading, error, minLength, reset } = useAnimeSearch()
 
 const root = ref<HTMLElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
 const isOpen = ref(false)
+/** Fila resaltada por teclado (no implica seleccion). */
 const activeIndex = ref(-1)
+/** Fila marcada al pulsar, la que despliega los destinos. */
+const selectedId = ref<number | null>(null)
 
 const hasQuery = computed(() => term.value.trim().length >= minLength)
 const showPanel = computed(() => isOpen.value && hasQuery.value)
-const listboxId = 'anime-search-listbox'
 
-const activeOptionId = computed(() =>
-  activeIndex.value >= 0 && results.value[activeIndex.value]
-    ? `anime-option-${results.value[activeIndex.value]!.id}`
-    : undefined,
-)
+const DESTINATIONS: Array<{ id: ListDestination; label: string }> = [
+  { id: 'personal', label: 'Personal' },
+  { id: 'shared', label: 'Compartida' },
+]
 
 watch(results, (list) => {
   activeIndex.value = list.length ? 0 : -1
+  // Una busqueda nueva invalida lo que hubiera marcado.
+  selectedId.value = null
 })
 
 watch(term, () => {
@@ -41,15 +47,18 @@ function move(step: number) {
 
 async function scrollActiveIntoView() {
   await nextTick()
-  const id = activeOptionId.value
-  if (!id) return
-  document.getElementById(id)?.scrollIntoView({ block: 'nearest' })
+  const media = results.value[activeIndex.value]
+  if (!media) return
+  document.getElementById(`anime-row-${media.id}`)?.scrollIntoView({ block: 'nearest' })
 }
 
-function choose(media: MediaSummary) {
-  emit('select', media)
-  isOpen.value = false
-  reset()
+/** Marcar y desmarcar: volver a pulsar la fila cierra los destinos. */
+function toggle(media: MediaSummary) {
+  selectedId.value = selectedId.value === media.id ? null : media.id
+}
+
+function pick(media: MediaSummary, destination: ListDestination) {
+  emit('select', media, destination)
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -66,12 +75,14 @@ function onKeydown(event: KeyboardEvent) {
       const media = results.value[activeIndex.value]
       if (showPanel.value && media) {
         event.preventDefault()
-        choose(media)
+        toggle(media)
       }
       break
     }
     case 'Escape':
-      isOpen.value = false
+      // Primero cierra los destinos; si no hay ninguno abierto, cierra el panel.
+      if (selectedId.value !== null) selectedId.value = null
+      else isOpen.value = false
       break
   }
 }
@@ -107,14 +118,10 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
         ref="input"
         v-model="term"
         type="text"
-        role="combobox"
         autocomplete="off"
         spellcheck="false"
-        aria-autocomplete="list"
-        :aria-controls="listboxId"
-        :aria-expanded="showPanel"
-        :aria-activedescendant="activeOptionId"
-        placeholder="Busca un anime en AniList…"
+        aria-label="Buscar un anime en AniList por título en romaji, inglés o preferido"
+        placeholder="Busca por título: romaji, inglés o preferido…"
         class="w-full rounded-full border border-line bg-surface/70 py-3 pr-11 pl-11 text-sm text-body transition placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:outline-none"
         @focus="isOpen = true"
         @keydown="onKeydown"
@@ -152,6 +159,10 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
       v-if="showPanel"
       class="absolute inset-x-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-surface/95 shadow-2xl shadow-shade backdrop-blur-md"
     >
+      <p class="sr-only" aria-live="polite">
+        {{ results.length }} resultados para {{ term.trim() }}
+      </p>
+
       <p v-if="error" class="px-4 py-3 text-xs text-red-400">{{ error }}</p>
 
       <p v-else-if="isLoading && !results.length" class="px-4 py-3 text-xs text-muted">
@@ -162,19 +173,45 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
         Sin coincidencias para «{{ term.trim() }}».
       </p>
 
-      <ul v-else :id="listboxId" role="listbox" class="max-h-80 overflow-y-auto p-1.5">
-        <li
-          v-for="(media, index) in results"
-          :id="`anime-option-${media.id}`"
-          :key="media.id"
-          role="option"
-          :aria-selected="index === activeIndex"
-          class="cursor-pointer rounded-xl px-2.5 py-2 transition-colors"
-          :class="index === activeIndex ? 'bg-surface-2' : 'hover:bg-surface-2/60'"
-          @pointerenter="activeIndex = index"
-          @click="choose(media)"
-        >
-          <MediaCard :media="media" variant="search" />
+      <ul v-else class="max-h-96 overflow-y-auto p-1.5">
+        <li v-for="(media, index) in results" :key="media.id">
+          <!-- La fila es un boton de verdad, no un role="option": las opciones
+               de un listbox no pueden contener controles, y aqui despliegan
+               dos botones de destino. -->
+          <button
+            :id="`anime-row-${media.id}`"
+            type="button"
+            :aria-pressed="selectedId === media.id"
+            class="w-full cursor-pointer rounded-xl px-2.5 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+            :class="[
+              selectedId === media.id
+                ? 'bg-accent/12 ring-1 ring-accent/45'
+                : index === activeIndex
+                  ? 'bg-surface-2'
+                  : 'hover:bg-surface-2/60',
+            ]"
+            @click="toggle(media)"
+            @pointerenter="activeIndex = index"
+          >
+            <MediaCard :media="media" variant="search" />
+          </button>
+
+          <!-- Destino: aparece solo en la fila marcada. -->
+          <div
+            v-if="selectedId === media.id"
+            class="rise flex flex-wrap items-center gap-2 px-2.5 pt-1 pb-3"
+          >
+            <span class="text-[11px] tracking-wide text-faint">Guardar en</span>
+            <button
+              v-for="destination in DESTINATIONS"
+              :key="destination.id"
+              type="button"
+              class="cursor-pointer rounded-full border border-line px-3 py-1 text-xs font-medium text-muted transition hover:border-accent/60 hover:bg-accent/10 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              @click="pick(media, destination.id)"
+            >
+              {{ destination.label }}
+            </button>
+          </div>
         </li>
       </ul>
     </div>

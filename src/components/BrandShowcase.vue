@@ -1,17 +1,35 @@
 <script setup lang="ts">
+import AnimeCard from './AnimeCard.vue'
+import frierenCover from '@/assets/frieren-cover.jpg'
+import type { MediaSummary } from '@/types/anilist'
+
 /**
- * Panel derecho del login. Ocupa el sitio del futuro arte de marca y mientras
- * tanto adelanta el lenguaje visual de la app: la card de un anime con sus
- * tres formatos de titulo, que es el corazon del buscador.
+ * Panel derecho del login. Adelanta la forma real de una card dentro de una
+ * lista reutilizando el mismo AnimeCard que usaran las listas.
  *
- * Sin imagenes externas a proposito: el login no debe depender de la red mas
- * alla de Firebase.
+ * La portada va empaquetada en el repo y no enlazada al CDN de AniList: el
+ * login no debe quedarse a medio pintar si la red va lenta.
  */
-const titles = [
-  { label: 'Romaji', value: 'Sousou no Frieren' },
-  { label: 'English', value: 'Frieren: Beyond Journey’s End' },
-  { label: 'Preferred', value: 'Sousou no Frieren' },
-]
+
+/** Datos reales de AniList (id 154587). */
+const frieren: MediaSummary = {
+  id: 154587,
+  titlePreferred: 'Sousou no Frieren',
+  titleRomaji: 'Sousou no Frieren',
+  titleEnglish: 'Frieren: Beyond Journey’s End',
+  coverImage: null,
+  coverColor: '#bbf1a1',
+  format: 'TV',
+  seasonYear: 2023,
+  episodes: 28,
+  seasons: null,
+  totalEpisodes: null,
+}
+
+const genres = ['Aventura', 'Drama', 'Fantasía']
+
+/** averageScore 91/100 en AniList -> 4,55 sobre 5. */
+const rating = 4.55
 </script>
 
 <template>
@@ -46,48 +64,29 @@ const titles = [
       Catálogo · AniList
     </span>
 
-    <div class="relative flex h-full flex-col justify-center gap-14 px-14 py-16 xl:px-20">
-      <!-- Mazo de cards horizontales: dos fantasma detras para dar profundidad.
-           Misma orientacion que la card de una lista guardada, para que el
-           login adelante la forma real de la app. -->
+    <div class="relative flex h-full flex-col justify-center gap-10 px-14 py-16 xl:px-20">
+      <!-- Mazo de cards: dos fantasma detras para dar profundidad. -->
       <div
-        class="relative mx-auto grid w-full max-w-[26rem] place-items-center"
+        class="relative mx-auto grid w-full max-w-[23rem] place-items-center"
         aria-hidden="true"
       >
         <div
-          class="rise absolute h-44 w-full translate-x-8 rotate-[7deg] rounded-2xl border border-overlay bg-surface-2/60"
+          class="rise absolute h-64 w-full translate-x-8 rotate-[7deg] rounded-3xl border border-overlay bg-surface-2/60"
           style="animation-delay: 60ms"
         />
         <div
-          class="rise absolute h-44 w-full -translate-x-8 -rotate-[5deg] rounded-2xl border border-overlay bg-surface-2/40"
+          class="rise absolute h-64 w-full -translate-x-8 -rotate-[5deg] rounded-3xl border border-overlay bg-surface-2/40"
           style="animation-delay: 30ms"
         />
 
-        <article
-          class="rise relative flex w-full -rotate-[2deg] items-center gap-5 rounded-2xl border border-overlay bg-surface/80 p-3 shadow-2xl shadow-shade backdrop-blur-sm"
+        <AnimeCard
+          class="rise relative w-full -rotate-[2deg]"
           style="animation-delay: 140ms"
-        >
-          <div
-            class="relative grid aspect-2/3 w-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-accent/25 via-surface-2 to-canvas dark:from-accent/40"
-          >
-            <!-- Hueco del logo: sustituir este glifo cuando exista el real. -->
-            <span class="font-display text-5xl leading-none text-body/10">A</span>
-            <span
-              class="absolute bottom-1.5 left-1.5 rounded-md bg-canvas/50 px-1.5 py-0.5 text-[9px] font-medium tracking-wider text-accent uppercase backdrop-blur-sm"
-            >
-              Pendiente
-            </span>
-          </div>
-
-          <dl class="min-w-0 flex-1 space-y-2.5 pr-1">
-            <div v-for="t in titles" :key="t.label">
-              <dt class="text-[10px] font-medium tracking-[0.18em] text-accent/70 uppercase">
-                {{ t.label }}
-              </dt>
-              <dd class="text-[13px] leading-snug text-muted">{{ t.value }}</dd>
-            </div>
-          </dl>
-        </article>
+          :media="frieren"
+          :cover="frierenCover"
+          :genres="genres"
+          :rating="rating"
+        />
       </div>
 
       <div class="mx-auto max-w-sm text-center">
