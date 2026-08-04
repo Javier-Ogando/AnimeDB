@@ -27,7 +27,7 @@ async function onSignIn() {
       <!-- En movil no hay panel derecho, asi que el halo vive aqui para que
            la pantalla no sea un negro plano. -->
       <div
-        class="drift pointer-events-none absolute -top-32 -right-24 size-96 rounded-full bg-accent/20 blur-[100px] lg:hidden"
+        class="drift pointer-events-none absolute -top-32 -right-24 size-96 rounded-full bg-accent/10 blur-[100px] lg:hidden dark:bg-accent/20"
         aria-hidden="true"
       />
 

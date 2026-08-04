@@ -58,26 +58,32 @@
 }
 
 /*
- * Modo claro en papel calido, no blanco hueso: el fondo tira a beige
- * (croma 0.016 en hue 85) y el texto es una tinta marron oscura en vez de
- * negro, para que no deslumbre con poca luz.
+ * Modo claro: blanco neutro con un susurro del violeta de la marca (croma 0.004
+ * en hue 310), no beige. Un fondo amarillento (hue ~85) es casi complementario
+ * del magenta (320) y hacia que el acento se leyera como choque en vez de como
+ * acento; compartiendo familia de hue, el rosa encaja.
+ *
+ * Sigue sin ser blanco puro: canvas al 97% y las cards al 99,5%, de modo que
+ * las superficies elevadas destacan sobre el fondo sin llegar al #fff, que con
+ * poca luz deslumbra.
  */
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --canvas: oklch(0.955 0.016 85);
-  --surface: oklch(0.978 0.01 85);
-  --surface-2: oklch(0.925 0.02 85);
-  --line: oklch(0.885 0.022 82);
-  --line-strong: oklch(0.82 0.028 80);
-  --body: oklch(0.32 0.022 60);
-  --muted: oklch(0.5 0.022 60);
-  --faint: oklch(0.58 0.02 60);
-  /* El magenta claro no contrasta sobre papel: se baja dos pasos. */
+  --canvas: oklch(0.97 0.004 310);
+  --surface: oklch(0.995 0.002 310);
+  --surface-2: oklch(0.94 0.006 310);
+  --line: oklch(0.9 0.008 310);
+  --line-strong: oklch(0.82 0.012 310);
+  /* Tinta violeta oscura, no negro: mismo criterio que en modo oscuro. */
+  --body: oklch(0.28 0.02 300);
+  --muted: oklch(0.47 0.02 300);
+  --faint: oklch(0.58 0.018 300);
+  /* El magenta claro no contrasta sobre blanco: se baja dos pasos. */
   --accent: oklch(0.55 0.2 320);
   --accent-strong: oklch(0.47 0.19 320);
-  --overlay: oklch(0.32 0.022 60 / 0.1);
-  --shade: oklch(0.45 0.04 60 / 0.12);
+  --overlay: oklch(0.28 0.02 300 / 0.1);
+  --shade: oklch(0.4 0.03 300 / 0.12);
 }
 
 /* `inline` hace que las utilidades emitan var(--surface) directamente, de modo

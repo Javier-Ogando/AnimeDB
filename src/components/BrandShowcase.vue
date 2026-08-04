@@ -16,13 +16,15 @@ const titles = [
 
 <template>
   <aside class="relative isolate hidden overflow-hidden bg-surface lg:block">
-    <!-- Atmosfera: dos halos desenfocados en deriva lenta + grano. -->
+    <!-- Atmosfera: dos halos desenfocados en deriva lenta + grano.
+         Sobre blanco el magenta pesa mas que sobre tinta, asi que en claro va
+         a la mitad de opacidad. -->
     <div
-      class="drift pointer-events-none absolute -top-[15%] -right-1/4 size-[38rem] rounded-full bg-accent/25 blur-[110px]"
+      class="drift pointer-events-none absolute -top-[15%] -right-1/4 size-[38rem] rounded-full bg-accent/12 blur-[110px] dark:bg-accent/25"
       aria-hidden="true"
     />
     <div
-      class="drift pointer-events-none absolute -bottom-[20%] -left-1/4 size-[32rem] rounded-full bg-ice-400/10 blur-[120px]"
+      class="drift pointer-events-none absolute -bottom-[20%] -left-1/4 size-[32rem] rounded-full bg-ice-400/8 blur-[120px] dark:bg-ice-400/10"
       style="animation-delay: -9s"
       aria-hidden="true"
     />
@@ -45,39 +47,44 @@ const titles = [
     </span>
 
     <div class="relative flex h-full flex-col justify-center gap-14 px-14 py-16 xl:px-20">
-      <!-- Mazo de cards: dos fantasma detras para dar profundidad. -->
-      <div class="relative mx-auto grid place-items-center" aria-hidden="true">
+      <!-- Mazo de cards horizontales: dos fantasma detras para dar profundidad.
+           Misma orientacion que la card de una lista guardada, para que el
+           login adelante la forma real de la app. -->
+      <div
+        class="relative mx-auto grid w-full max-w-[26rem] place-items-center"
+        aria-hidden="true"
+      >
         <div
-          class="rise absolute h-80 w-56 translate-x-16 rotate-[14deg] rounded-2xl border border-overlay bg-surface-2/60"
+          class="rise absolute h-44 w-full translate-x-8 rotate-[7deg] rounded-2xl border border-overlay bg-surface-2/60"
           style="animation-delay: 60ms"
         />
         <div
-          class="rise absolute h-80 w-56 -translate-x-16 -rotate-[11deg] rounded-2xl border border-overlay bg-surface-2/40"
+          class="rise absolute h-44 w-full -translate-x-8 -rotate-[5deg] rounded-2xl border border-overlay bg-surface-2/40"
           style="animation-delay: 30ms"
         />
 
         <article
-          class="rise relative w-64 -rotate-[3deg] rounded-2xl border border-overlay bg-surface/80 p-3 shadow-2xl shadow-shade backdrop-blur-sm"
+          class="rise relative flex w-full -rotate-[2deg] items-center gap-5 rounded-2xl border border-overlay bg-surface/80 p-3 shadow-2xl shadow-shade backdrop-blur-sm"
           style="animation-delay: 140ms"
         >
           <div
-            class="relative grid aspect-2/3 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-accent/40 via-surface-2 to-canvas"
+            class="relative grid aspect-2/3 w-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-accent/25 via-surface-2 to-canvas dark:from-accent/40"
           >
             <!-- Hueco del logo: sustituir este glifo cuando exista el real. -->
-            <span class="font-display text-7xl leading-none text-body/10">A</span>
+            <span class="font-display text-5xl leading-none text-body/10">A</span>
             <span
-              class="absolute bottom-2 left-2 rounded-md bg-canvas/50 px-2 py-0.5 text-[10px] font-medium tracking-wider text-accent uppercase backdrop-blur-sm"
+              class="absolute bottom-1.5 left-1.5 rounded-md bg-canvas/50 px-1.5 py-0.5 text-[9px] font-medium tracking-wider text-accent uppercase backdrop-blur-sm"
             >
               Pendiente
             </span>
           </div>
 
-          <dl class="mt-4 space-y-2.5 px-1 pb-1">
+          <dl class="min-w-0 flex-1 space-y-2.5 pr-1">
             <div v-for="t in titles" :key="t.label">
               <dt class="text-[10px] font-medium tracking-[0.18em] text-accent/70 uppercase">
                 {{ t.label }}
               </dt>
-              <dd class="truncate text-[13px] leading-snug text-muted">{{ t.value }}</dd>
+              <dd class="text-[13px] leading-snug text-muted">{{ t.value }}</dd>
             </div>
           </dl>
         </article>
