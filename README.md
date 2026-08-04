@@ -102,17 +102,41 @@ El archivo `.env` está en `.gitignore`. La protección real de los datos vive e
 | `npm run build` | Build de producción en `dist/` |
 | `npm run preview` | Sirve el build de producción en local |
 
+## Despliegue (GitHub Pages)
+
+El sitio se publica en <https://javier-ogando.github.io/AnimeDB/> con el workflow
+[`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml), que compila con Vite
+y sube `dist/` en cada push a `main`.
+
+Requisitos de configuración, una sola vez:
+
+1. **Settings → Pages → Source: GitHub Actions.** Con el modo por defecto (*Deploy from a branch*),
+   Pages sirve el repositorio en crudo y el navegador recibe el `index.html` de desarrollo, que
+   apunta a `/src/main.ts`: página en blanco.
+2. **Settings → Secrets and variables → Actions**, las seis `VITE_FIREBASE_*` de tu `.env`.
+   No son secretos reales — viajan en el bundle como en cualquier app web — pero así no quedan
+   escritas en el repositorio.
+3. **Firebase → Authentication → Settings → Dominios autorizados**: añadir `javier-ogando.github.io`,
+   o el login fallará con `auth/unauthorized-domain`.
+
+Dos detalles que el subdirectorio `/AnimeDB/` obliga a tener en cuenta:
+
+- `base` en `vite.config.ts` prefija los assets del build (y `BASE_PATH` lo sobreescribe si algún
+  día hay dominio propio). El router lee ese valor de `import.meta.env.BASE_URL`.
+- Pages no tiene reescrituras, así que el build publica también `404.html` como copia de
+  `index.html`: es lo que permite entrar directamente a una ruta como `/AnimeDB/login`.
+
 ## Estado del proyecto
 
-Fase inicial: el andamiaje (Vite + Vue 3 + TS + Tailwind + Firebase) todavía está por montar. Hoja de ruta corta:
-
-- [ ] Scaffolding del proyecto y configuración de Tailwind
-- [ ] Login con Google y guarda de rutas
-- [ ] Cliente de AniList + buscador con autocompletado
+- [x] Scaffolding del proyecto y configuración de Tailwind
+- [x] Login con Google y guarda de rutas
+- [x] Cliente de AniList + buscador con autocompletado
+- [x] Modo claro / oscuro
+- [ ] Alta de un anime en una lista
 - [ ] Lista de Pendientes personal
 - [ ] Lista comunitaria (alta y baja voluntaria)
 - [ ] Listas compartidas con link de invitación
-- [ ] Reglas de seguridad de Firestore
+- [ ] Desplegar las reglas de seguridad de Firestore
 
 ## Licencia
 
