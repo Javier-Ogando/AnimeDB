@@ -21,8 +21,12 @@ async function onSignIn() {
 <template>
   <div class="min-h-dvh lg:grid lg:grid-cols-2">
     <!-- ── Columna de acceso ─────────────────────────────────────────── -->
+    <!-- En claro la columna se hunde un paso (surface-2) para separarse del
+         panel derecho, que es casi blanco. En oscuro no hace falta: ahi el
+         panel ya es mas claro que el fondo. El salto de luminosidad (dL 0.055)
+         iguala el que separa fondo y panel en modo oscuro (dL 0.045). -->
     <section
-      class="relative isolate flex min-h-dvh flex-col overflow-hidden px-6 pt-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-10 lg:px-14 xl:px-20"
+      class="relative isolate flex min-h-dvh flex-col overflow-hidden bg-surface-2 px-6 pt-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-10 lg:px-14 xl:px-20 dark:bg-canvas"
     >
       <!-- En movil no hay panel derecho, asi que el halo vive aqui para que
            la pantalla no sea un negro plano. -->

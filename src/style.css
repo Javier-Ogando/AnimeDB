@@ -34,12 +34,17 @@
  * Tokens semanticos. Los componentes usan SIEMPRE estos (bg-surface, text-muted)
  * y nunca un color literal, para que cambiar de tema sea cambiar estos valores.
  *
- * Se escriben con oklch literal y no con var(--color-ink-*) a proposito:
- * Tailwind solo emite las variables de @theme que detecta usadas por alguna
- * utilidad, y una referencia desde aqui no cuenta como uso.
+ * Se escriben con oklch literal y no con var(--color-*) a proposito: Tailwind
+ * solo emite las variables de @theme que detecta usadas por alguna utilidad, y
+ * una referencia desde aqui no contaria como uso.
+ *
+ * Los selectores no llevan :root, asi que valen en cualquier elemento: poner
+ * data-theme en un contenedor redeclara los tokens para ese subarbol. Ahora
+ * mismo solo se usa en <html>, pero deja la puerta abierta a una zona con tema
+ * propio sin fijar ningun color a mano.
  */
 :root,
-:root[data-theme='dark'] {
+[data-theme='dark'] {
   color-scheme: dark;
 
   /* Tinta con deriva violeta: un negro neutro se ve muerto junto al magenta. */
@@ -67,7 +72,7 @@
  * las superficies elevadas destacan sobre el fondo sin llegar al #fff, que con
  * poca luz deslumbra.
  */
-:root[data-theme='light'] {
+[data-theme='light'] {
   color-scheme: light;
 
   --canvas: oklch(0.97 0.004 310);

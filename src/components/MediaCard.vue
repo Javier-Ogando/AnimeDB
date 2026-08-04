@@ -4,14 +4,10 @@ import { formatEpisodes } from '@/lib/media'
 import type { MediaSummary } from '@/types/anilist'
 
 /**
- * Card horizontal de un anime. Se usa en dos contextos con proporciones
- * distintas, de ahi la prop `variant`:
+ * Fila compacta de un anime: portada, titulo y capitulos. Se usa en el
+ * desplegable del buscador y en cualquier listado denso.
  *
- *   'search' -> fila compacta del desplegable del buscador
- *   'list'   -> card dentro de una lista guardada, con mas aire y poster alto
- *
- * Acepta MediaSummary, que es la forma comun entre un resultado de AniList y
- * el snapshot que guardamos en Firestore.
+ * Para la card completa (generos, valoracion, los tres titulos) ver AnimeCard.vue.
  */
 const props = withDefaults(
   defineProps<{
@@ -25,12 +21,19 @@ const episodes = computed(() => formatEpisodes(props.media))
 
 const isSearch = computed(() => props.variant === 'search')
 
-/** El hueco de la imagen: 20% del ancho en ambas variantes, distinta altura. */
+/**
+ * La portada mantiene la proporcion 2:3 de los posters en las dos variantes:
+ * en la fila del buscador se ancla a la altura (~37x56 px) y en la card de una
+ * lista al ancho. Asi la imagen nunca se deforma.
+ */
 const posterClass = computed(() =>
-  isSearch.value ? 'h-14 w-1/5 max-w-20' : 'aspect-2/3 w-1/5 max-w-28',
+  isSearch.value ? 'aspect-2/3 h-14' : 'aspect-2/3 w-1/5 max-w-28',
 )
 
-/** Tinte del placeholder con el color dominante que da AniList. */
+/**
+ * Tinte con el color dominante que da AniList. Sigue viendose mientras la
+ * imagen carga y como respaldo cuando un titulo no tiene portada.
+ */
 const posterStyle = computed(() => {
   const color = props.media.coverColor
   return color
@@ -41,14 +44,21 @@ const posterStyle = computed(() => {
 
 <template>
   <div class="flex items-center" :class="isSearch ? 'gap-3' : 'gap-4'">
-    <!-- Placeholder de portada. La URL ya viene en media.coverImage: cuando
-         queramos imagenes reales, aqui va un <img> con ese src. -->
     <div
       class="shrink-0 overflow-hidden rounded-lg border border-overlay bg-surface-2"
       :class="posterClass"
       :style="posterStyle"
-      aria-hidden="true"
-    />
+    >
+      <img
+        v-if="media.coverImage"
+        :src="media.coverImage"
+        alt=""
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+        class="size-full object-cover"
+      />
+    </div>
 
     <div class="min-w-0 flex-1">
       <p
@@ -58,14 +68,6 @@ const posterStyle = computed(() => {
         {{ media.titlePreferred }}
       </p>
       <p class="mt-0.5 text-xs text-muted">{{ episodes }}</p>
-
-      <!-- Segundo titulo: solo en la variante de lista, donde hay sitio. -->
-      <p
-        v-if="!isSearch && media.titleEnglish && media.titleEnglish !== media.titlePreferred"
-        class="mt-1 truncate text-xs text-faint"
-      >
-        {{ media.titleEnglish }}
-      </p>
     </div>
 
     <!-- Hueco para acciones (añadir, cambiar estado, quitar…). -->

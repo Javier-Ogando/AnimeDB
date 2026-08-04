@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import AnimeSearchInput from '@/components/AnimeSearchInput.vue'
 import BrandMark from '@/components/BrandMark.vue'
-import MediaCard from '@/components/MediaCard.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
-import type { MediaSummary } from '@/types/anilist'
 
 const { user, signOut, isBusy } = useAuth()
 const router = useRouter()
@@ -16,13 +13,6 @@ const cards = [
   { title: 'Lista comunitaria', hint: 'Pública, te apuntas si quieres' },
   { title: 'Listas compartidas', hint: 'Por link de invitación' },
 ]
-
-/** Provisional: el siguiente paso es escribirlo en lists/{id}/items/{animeId}. */
-const selected = ref<MediaSummary | null>(null)
-
-function onSelect(media: MediaSummary) {
-  selected.value = media
-}
 
 async function onSignOut() {
   await signOut()
@@ -61,22 +51,10 @@ async function onSignOut() {
     </header>
 
     <main class="mx-auto max-w-5xl px-6 py-12">
-      <h1 class="font-display text-3xl tracking-tight">
-        Hola, {{ user?.displayName?.split(' ')[0] ?? 'usuario' }}
-      </h1>
-
-      <div class="mt-8 flex justify-center">
-        <AnimeSearchInput @select="onSelect" />
-      </div>
-
-      <!-- Provisional, hasta que exista el alta en lista: demuestra la
-           variante 'list' del mismo MediaCard. -->
-      <div
-        v-if="selected"
-        class="relative z-0 mx-auto mt-6 max-w-xl rounded-2xl border border-line bg-surface/60 p-4"
-      >
-        <p class="mb-3 text-[11px] tracking-[0.18em] text-accent/70 uppercase">Selección</p>
-        <MediaCard :media="selected" variant="list" />
+      <!-- El destino (Personal / Compartida) se elige dentro del desplegable.
+           Pendiente: escuchar @select y escribir en lists/{id}/items/{animeId}. -->
+      <div class="flex justify-center">
+        <AnimeSearchInput />
       </div>
 
       <!-- z-0 explicito: el desplegable del buscador debe quedar por encima. -->
