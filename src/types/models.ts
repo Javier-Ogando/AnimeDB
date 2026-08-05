@@ -27,11 +27,36 @@ export interface ListDoc {
   /** Solo en 'personal' y 'shared'. La comunitaria usa la subcoleccion members. */
   memberUids?: string[]
   itemCount: number
+  /**
+   * Hay una invitacion vigente. Es lo que permite a las reglas dejar que un
+   * invitado se anada a si mismo a memberUids: sin este campo solo el
+   * propietario podria modificar la lista y nadie podria aceptar el enlace.
+   */
+  joinOpen?: boolean
   createdAt: Timestamp
   updatedAt: Timestamp
 }
 
 export type ItemStatus = 'pending' | 'watching' | 'done'
+
+/**
+ * Copia de los datos necesarios para pintar una card. Duplicado a proposito:
+ * asi una lista de 50 animes es UNA consulta en vez de una consulta mas 50
+ * lecturas de media/{id}. Incluye genero y nota porque, sin ellos, las cards de
+ * una lista se verian mas pobres que las del buscador.
+ */
+export interface MediaSnapshot {
+  titlePreferred: string
+  titleRomaji: string | null
+  titleEnglish: string | null
+  coverImage: string | null
+  coverColor: string | null
+  episodes: number | null
+  genres: string[]
+  averageScore: number | null
+  /** Sinopsis en texto plano, recortada. Se pide a AniList al dar de alta. */
+  description: string | null
+}
 
 /** lists/{listId}/items/{anilistId} — la union list <-> media */
 export interface ListItemDoc {
@@ -39,12 +64,7 @@ export interface ListItemDoc {
   addedBy: string
   addedAt: Timestamp
   status: ItemStatus
-  /** Duplicado a proposito: pinta la card sin leer media/{id}. */
-  snapshot: {
-    titlePreferred: string
-    titleEnglish: string | null
-    coverImage: string | null
-  }
+  snapshot: MediaSnapshot
 }
 
 /** lists/community/members/{uid} */

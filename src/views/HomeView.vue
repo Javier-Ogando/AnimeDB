@@ -1,73 +1,90 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { computed, onUnmounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import AnimeSearchInput from '@/components/AnimeSearchInput.vue'
-import BrandMark from '@/components/BrandMark.vue'
-import ThemeToggle from '@/components/ThemeToggle.vue'
+import { useToast } from '@/composables/useToast'
+import {
+  addAnimeToList,
+  ensurePersonalList,
+  personalListId,
+  watchMyLists,
+  type ListWithId,
+} from '@/lib/lists'
+import AnimeSearchInput, { type SearchDestination } from '@/components/AnimeSearchInput.vue'
+import AppHeader from '@/components/AppHeader.vue'
+import type { MediaSummary } from '@/types/anilist'
 
-const { user, signOut, isBusy } = useAuth()
-const router = useRouter()
+const { user } = useAuth()
+const { notify } = useToast()
 
 const cards = [
-  { title: 'Mis pendientes', hint: 'Tu lista personal' },
-  { title: 'Lista comunitaria', hint: 'Pública, te apuntas si quieres' },
-  { title: 'Listas compartidas', hint: 'Por link de invitación' },
+  { to: '/personal', title: 'Mis pendientes', hint: 'Tu lista personal' },
+  { to: '/general', title: 'General', hint: 'Todo lo registrado en la app' },
+  { to: '/compartidas', title: 'Listas compartidas', hint: 'Por link de invitación' },
 ]
 
-async function onSignOut() {
-  await signOut()
-  await router.replace({ name: 'login' })
+/** Las compartidas son destinos del buscador, así que hay que conocerlas. */
+const sharedLists = ref<ListWithId[]>([])
+
+let unsubscribe: (() => void) | null = null
+
+const uid = user.value?.uid
+if (uid) {
+  unsubscribe = watchMyLists(uid, 'shared', (next) => (sharedLists.value = next))
+}
+onUnmounted(() => unsubscribe?.())
+
+const destinations = computed<SearchDestination[]>(() => [
+  { id: 'personal', label: 'Personal' },
+  ...sharedLists.value.map((list) => ({ id: list.id, label: list.name })),
+])
+
+async function onSelect(media: MediaSummary, destinationId: string) {
+  if (!user.value) return
+
+  try {
+    // 'personal' es un alias: la lista personal se crea al vuelo si no existe.
+    const listId =
+      destinationId === 'personal'
+        ? await ensurePersonalList(user.value.uid)
+        : destinationId || personalListId(user.value.uid)
+
+    await addAnimeToList(listId, media, user.value.uid)
+
+    const target = destinations.value.find((d) => d.id === destinationId)
+    notify(`«${media.titleRomaji ?? media.titlePreferred}» añadido a ${target?.label ?? 'tu lista'}.`)
+  } catch (e) {
+    notify(
+      (e as Error).message.includes('permission')
+        ? 'Firestore ha denegado la escritura. Despliega las reglas: npx firebase deploy --only firestore:rules'
+        : 'No se ha podido añadir.',
+      'error',
+    )
+  }
 }
 </script>
 
 <template>
   <div class="min-h-dvh">
-    <header class="border-b border-line">
-      <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4">
-        <BrandMark class="text-lg" />
-
-        <div class="flex items-center gap-3">
-          <ThemeToggle />
-          <img
-            v-if="user?.photoURL"
-            :src="user.photoURL"
-            :alt="user.displayName ?? 'Avatar'"
-            class="size-8 rounded-full ring-1 ring-line"
-            referrerpolicy="no-referrer"
-          />
-          <span class="hidden text-sm text-muted sm:inline">
-            {{ user?.displayName ?? user?.email }}
-          </span>
-          <button
-            type="button"
-            :disabled="isBusy"
-            class="cursor-pointer rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-muted transition hover:border-accent/60 hover:text-body disabled:cursor-not-allowed disabled:opacity-60"
-            @click="onSignOut"
-          >
-            Salir
-          </button>
-        </div>
-      </div>
-    </header>
+    <AppHeader />
 
     <main class="mx-auto max-w-5xl px-6 py-12">
-      <!-- El destino (Personal / Compartida) se elige dentro del desplegable.
-           Pendiente: escuchar @select y escribir en lists/{id}/items/{animeId}. -->
       <div class="flex justify-center">
-        <AnimeSearchInput />
+        <AnimeSearchInput :destinations="destinations" @select="onSelect" />
       </div>
 
       <!-- z-0 explicito: el desplegable del buscador debe quedar por encima. -->
       <div class="relative z-0 mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <article
+        <RouterLink
           v-for="card in cards"
           :key="card.title"
-          class="cursor-pointer rounded-2xl border border-line bg-surface/60 p-5 transition hover:border-accent/40"
+          :to="card.to"
+          class="rounded-2xl border border-line bg-surface/60 p-5 transition hover:border-accent/40"
         >
           <h2 class="text-sm font-medium">{{ card.title }}</h2>
           <p class="mt-1 text-xs text-muted">{{ card.hint }}</p>
-          <p class="mt-6 text-xs text-faint">Pendiente de implementar</p>
-        </article>
+          <p class="mt-6 text-xs text-accent">Abrir →</p>
+        </RouterLink>
       </div>
     </main>
   </div>

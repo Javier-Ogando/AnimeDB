@@ -68,7 +68,13 @@ por prefijo, no por subcadena.
 La solución es un índice propio, donde `%texto%` es un `includes` de JavaScript:
 
 - `npm run build:index` recorre AniList por popularidad y escribe `public/anime-index.json`
-  (5000 títulos, ~700 KB; es el techo de paginación de AniList por consulta).
+  (5000 títulos, es el techo de paginación de AniList por consulta). Guarda por entrada el id, los
+  títulos, los episodios, la portada, el color dominante, la nota (`averageScore`) y los géneros.
+- El archivo está optimizado a conciencia, porque son 5000 entradas: cada una es un **array** y no
+  un objeto (repetir los nombres de campo costaría más de 200 KB), `romaji`/`english` van a `null`
+  cuando coinciden con el preferido, de la portada solo se guarda el nombre del fichero —el prefijo
+  del CDN va una vez en la cabecera— y los géneros son **índices a una tabla compartida**, así que
+  cada uno ocupa 1 o 2 bytes en lugar de doce.
 - El buscador lo descarga **en la primera pulsación**, no al abrir la página, y lo deja en memoria.
 - Ordena por calidad de coincidencia: título exacto, empieza por, empieza una palabra
   (`tensei` en *Mushoku Tensei*), aparece en cualquier posición (`shoku` en *Mushoku*). A igualdad,
@@ -79,6 +85,29 @@ La solución es un índice propio, donde `%texto%` es un `includes` de JavaScrip
   mensual, que solo commitea si el archivo ha cambiado.
 
 Si el índice no existe, la aplicación no se rompe: avisa una vez por consola y busca solo contra la API.
+
+## Estado de la app (`/admin`)
+
+Pantalla **de solo lectura** para vigilar el índice: número de títulos, antigüedad, peso, géneros
+distintos, recuento de entradas con datos incompletos (sin valoración, sin género, sin portada…) con
+filtro sobre el listado completo, y el estado de la última ejecución del workflow que lo regenera.
+
+No permite modificar nada, y por eso el control de acceso es deliberadamente sencillo:
+**`VITE_ADMIN_UIDS`** (UIDs separados por comas; se ven en la consola de Firebase →
+*Authentication* → *Users*). En producción hay que añadirla también como secret del repositorio, o
+`/admin` quedará inaccesible.
+
+> Esa comprobación **solo oculta la pantalla**: la lista de UIDs viaja en el bundle, como cualquier
+> variable `VITE_`, y el guardián del router se ejecuta en el navegador. Es aceptable porque todo lo
+> que muestra ya es público —el índice está en el repositorio y el estado del workflow sale de la
+> API pública de GitHub—. Si algún día muestra datos de otros usuarios o permite escribir, la
+> autorización tendrá que vivir en las reglas de Firestore o en un *custom claim* del token.
+
+**El botón de regenerar no ejecuta el script.** El generador es Node y la página es estática, así
+que el navegador no puede lanzarlo: el panel enlaza al workflow en GitHub Actions (*Run workflow*,
+un clic) y muestra el comando local. El estado de la última ejecución se lee de la API pública de
+GitHub, sin token, lo que implica un límite de 60 peticiones por hora y por IP — el panel distingue
+ese caso y lo dice.
 
 ## Modelo de datos (Firestore, propuesta inicial)
 

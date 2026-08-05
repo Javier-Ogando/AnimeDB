@@ -23,20 +23,28 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function listData(listId) {
-      return get(/databases/$(database)/documents/lists/$(listId)).data;
+    function listPath(listId) {
+      return /databases/$(database)/documents/lists/$(listId);
     }
 
+    /**
+     * Ojo con las listas que no existen: get() devuelve null y desreferenciar
+     * .data aborta la evaluacion, lo que se traduce en permission-denied. De ahi
+     * el exists() delante.
+     */
     function isMemberOf(listId) {
-      let l = listData(listId);
-      return isSignedIn() && (
-        l.type == 'community' ||
-        request.auth.uid in l.get('memberUids', [])
-      );
+      return isSignedIn()
+        && exists(listPath(listId))
+        && (
+          get(listPath(listId)).data.type == 'community' ||
+          request.auth.uid in get(listPath(listId)).data.get('memberUids', [])
+        );
     }
 
     function isOwnerOf(listId) {
-      return isSignedIn() && listData(listId).ownerUid == request.auth.uid;
+      return isSignedIn()
+        && exists(listPath(listId))
+        && get(listPath(listId)).data.ownerUid == request.auth.uid;
     }
 
     // ---------- users ----------
@@ -45,7 +53,16 @@ service cloud.firestore {
       // Perfiles legibles entre usuarios autenticados: hacen falta para
       // mostrar quien comparte lista contigo.
       allow read: if isSignedIn();
-      allow create, update: if isSelf(uid);
+
+      allow create: if isSelf(uid);
+
+      // Lista blanca de campos. Sin ella, cualquiera podria escribir lo que
+      // quisiera en su propio documento (incluido inventarse un rol), y ese
+      // documento lo leen los demas.
+      allow update: if isSelf(uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'photoURL', 'email', 'lastLoginAt']);
+
       allow delete: if false;
     }
 
@@ -62,7 +79,12 @@ service cloud.firestore {
     // ---------- lists ----------
 
     match /lists/{listId} {
+      // `resource == null` cubre la lectura de una lista que todavia no existe,
+      // que es lo que hace la app antes de crear la lista personal. Sin este
+      // caso, resource.data revienta la regla y sale permission-denied aunque
+      // no haya nada que proteger: un documento inexistente no filtra nada.
       allow read: if isSignedIn() && (
+        resource == null ||
         resource.data.type == 'community' ||
         request.auth.uid in resource.data.get('memberUids', [])
       );
@@ -76,10 +98,38 @@ service cloud.firestore {
 
       // El owner puede renombrar y gestionar miembros, pero no cambiar el
       // tipo de la lista ni traspasar la propiedad.
-      allow update: if isSignedIn()
-        && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.type == resource.data.type;
+      //
+      // Y un invitado puede APUNTARSE A SI MISMO cuando la lista tiene una
+      // invitacion vigente (joinOpen). Sin esta segunda via, aceptar un enlace
+      // seria imposible: el invitado todavia no es miembro, asi que no es owner
+      // y no podria tocar memberUids.
+      //
+      // Que solo se pueda anadir a si mismo se comprueba exigiendo que el nuevo
+      // array sea exactamente el anterior mas su propio uid.
+      allow update: if isSignedIn() && (
+        (
+          resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.type == resource.data.type
+        ) || (
+          resource.data.get('joinOpen', false) == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])
+          && request.resource.data.memberUids ==
+               resource.data.memberUids.concat([request.auth.uid])
+        ) || (
+          // Cualquier miembro mueve el contador al anadir o quitar un anime.
+          // Sin esta via, en una lista compartida solo el propietario podria
+          // anadir, porque el alta actualiza itemCount en el mismo lote.
+          // Se lee memberUids de resource en vez de llamar a isMemberOf() para
+          // no gastar una lectura extra.
+          // itemCount/updatedAt: cualquier miembro los mueve al anadir o quitar
+          // un anime. joinOpen: cualquier miembro puede invitar, asi que
+          // tambien tiene que poder abrir la lista a invitaciones.
+          request.auth.uid in resource.data.get('memberUids', [])
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['itemCount', 'updatedAt', 'joinOpen'])
+        )
+      );
 
       allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
 
@@ -118,9 +168,11 @@ service cloud.firestore {
       // le lleva. El token es el secreto.
       allow read: if isSignedIn();
 
+      // Cualquier miembro puede invitar, no solo quien creo la lista: la idea
+      // es que una lista compartida crezca en cadena.
       allow create: if isSignedIn()
         && request.resource.data.createdBy == request.auth.uid
-        && isOwnerOf(request.resource.data.listId);
+        && isMemberOf(request.resource.data.listId);
 
       // Revocar / contar usos: solo quien la creo.
       allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid;

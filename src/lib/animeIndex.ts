@@ -11,7 +11,12 @@ import type { MediaSummary } from '@/types/anilist'
  * memoria para el resto de la sesion.
  */
 
-/** [id, preferred, romaji, english, episodios, ficheroPortada, color] */
+/**
+ * [id, preferred, romaji, english, episodios, portada, color, nota, generos]
+ *
+ * Los dos ultimos son opcionales para poder leer indices generados antes de que
+ * existieran, en cuyo caso la card se pinta sin estrellas ni chips.
+ */
 type IndexRow = [
   number,
   string,
@@ -20,11 +25,15 @@ type IndexRow = [
   number | null,
   string | null,
   string | null,
+  (number | null)?,
+  number[]?,
 ]
 
 interface IndexFile {
   generatedAt: string
   coverBase: string
+  /** Los generos de cada entrada son indices dentro de esta tabla. */
+  genreTable?: string[]
   count: number
   items: IndexRow[]
 }
@@ -38,8 +47,28 @@ interface Entry {
 /** Cuantos titulos devuelve el indice como maximo. */
 export const LOCAL_LIMIT = 8
 
+/** Datos del archivo, para el panel de administracion. */
+export interface IndexMeta {
+  generatedAt: string | null
+  count: number
+  genreTable: string[]
+  /** Peso real del archivo descargado. */
+  bytes: number
+}
+
 let entries: Entry[] | null = null
 let pending: Promise<Entry[]> | null = null
+let meta: IndexMeta | null = null
+
+export function getIndexMeta(): IndexMeta | null {
+  return meta
+}
+
+/** Todo el indice, para inspeccionarlo en administracion. */
+export async function allIndexedMedia(): Promise<MediaSummary[]> {
+  const index = await ensureAnimeIndex()
+  return index.map((entry) => entry.media)
+}
 
 export function normalizeTerm(value: string): string {
   return value
@@ -49,8 +78,8 @@ export function normalizeTerm(value: string): string {
     .trim()
 }
 
-function toEntry(row: IndexRow, coverBase: string): Entry {
-  const [id, preferred, romaji, english, episodes, cover, color] = row
+function toEntry(row: IndexRow, coverBase: string, genreTable: string[]): Entry {
+  const [id, preferred, romaji, english, episodes, cover, color, score, genreIds] = row
 
   const media: MediaSummary = {
     id,
@@ -67,6 +96,10 @@ function toEntry(row: IndexRow, coverBase: string): Entry {
     episodes,
     seasons: null,
     totalEpisodes: null,
+    genres: (genreIds ?? [])
+      .map((index) => genreTable[index])
+      .filter((genre): genre is string => Boolean(genre)),
+    averageScore: score ?? null,
   }
 
   const haystacks = [preferred, romaji, english]
@@ -83,8 +116,20 @@ async function load(): Promise<Entry[]> {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`indice no disponible (HTTP ${response.status})`)
 
-  const file = (await response.json()) as IndexFile
-  return file.items.map((row) => toEntry(row, file.coverBase))
+  // Se lee como texto para poder medir el peso real: Content-Length no llega
+  // cuando el servidor comprime la respuesta.
+  const text = await response.text()
+  const file = JSON.parse(text) as IndexFile
+  const genreTable = file.genreTable ?? []
+
+  meta = {
+    generatedAt: file.generatedAt ?? null,
+    count: file.count ?? file.items.length,
+    genreTable,
+    bytes: new TextEncoder().encode(text).length,
+  }
+
+  return file.items.map((row) => toEntry(row, file.coverBase, genreTable))
 }
 
 export function ensureAnimeIndex(): Promise<Entry[]> {

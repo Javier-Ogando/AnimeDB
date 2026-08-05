@@ -115,6 +115,22 @@ body {
     color 0.35s var(--ease-out-expo);
 }
 
+/* Pastilla flotante: el lenguaje visual de la cabecera y del boton de tema.
+   Se define una vez porque se repite en el logo, la navegacion, las acciones y
+   el conmutador de tema, y cualquier retoque debe verse en los cuatro. */
+/* En CSS explicito y no con @apply: al pasar por @apply dentro de @utility, la
+   opacidad de bg-surface/70, la sombra y el backdrop-blur se perdian y salia una
+   pastilla opaca y plana. */
+@utility float-pill {
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  background-color: color-mix(in oklab, var(--surface) 72%, transparent);
+  box-shadow:
+    0 10px 20px -6px var(--shade),
+    0 2px 6px -2px var(--shade);
+  backdrop-filter: blur(12px);
+}
+
 /* Grano fino sobre los degradados: evita el look de "gradiente plano". */
 @utility grain {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
