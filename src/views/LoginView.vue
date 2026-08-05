@@ -3,7 +3,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import BrandMark from '@/components/BrandMark.vue'
 import BrandShowcase from '@/components/BrandShowcase.vue'
-import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const { signInWithGoogle, isBusy, error } = useAuth()
 const route = useRoute()
@@ -35,9 +34,8 @@ async function onSignIn() {
         aria-hidden="true"
       />
 
-      <header class="relative flex items-center justify-between gap-3">
+      <header class="relative">
         <BrandMark class="text-xl" />
-        <ThemeToggle />
       </header>
 
       <div class="relative flex flex-1 items-center justify-center py-12">
@@ -97,7 +95,9 @@ async function onSignIn() {
         </div>
       </div>
 
-      <footer class="relative text-center text-xs leading-relaxed text-faint">
+      <!-- pb-14 en movil: deja hueco al boton de tema flotante, que en pantallas
+           estrechas se solaparia con este texto. -->
+      <footer class="relative pb-14 text-center text-xs leading-relaxed text-faint sm:pb-0">
         AnimeDB es un catálogo de consulta: no aloja ni reproduce contenido.
         <span class="block">Metadatos de AniList.</span>
       </footer>

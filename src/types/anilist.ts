@@ -4,6 +4,8 @@ export interface AniListMedia {
   episodes: number | null
   format: string | null
   seasonYear: number | null
+  averageScore: number | null
+  genres: string[] | null
   title: {
     romaji: string | null
     english: string | null
@@ -18,7 +20,7 @@ export interface AniListMedia {
 /**
  * Forma normalizada que consume la UI. La usan tanto los resultados de AniList
  * como los items ya guardados en Firestore (que traen menos campos), para que
- * MediaCard sirva en los dos sitios.
+ * AnimeCard sirva en los dos sitios.
  */
 export interface MediaSummary {
   id: number
@@ -31,6 +33,12 @@ export interface MediaSummary {
   seasonYear: number | null
   /** Episodios de esta entrada concreta de AniList. */
   episodes: number | null
+  /** Generos en ingles, tal como los nombra AniList. Se traducen al pintar. */
+  genres?: string[]
+  /** averageScore de AniList (0-100). El cliente lo pasa a estrellas (0-5). */
+  averageScore?: number | null
+  /** Sinopsis en texto plano. Solo la traen los items ya guardados. */
+  description?: string | null
   /**
    * Temporadas detectadas en la franquicia, o null si no se han podido
    * determinar. 1 no se usa: si solo hay una, queda en null.

@@ -41,6 +41,8 @@ const QUERY = `
       media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
         id
         episodes
+        averageScore
+        genres
         title { romaji english userPreferred }
         coverImage { large color }
       }
@@ -78,13 +80,34 @@ async function fetchPage(page, attempt = 1) {
 }
 
 /**
+ * Tabla de generos compartida. AniList usa una lista cerrada de una veintena, y
+ * guardarlos como indices en lugar de repetir "Adventure" 3000 veces ahorra
+ * cientos de KB: cada genero pasa de ~12 bytes a 1 o 2.
+ */
+const genreTable = []
+const genreIds = new Map()
+
+function toGenreIds(list) {
+  return (list ?? []).map((genre) => {
+    let id = genreIds.get(genre)
+    if (id === undefined) {
+      id = genreTable.length
+      genreTable.push(genre)
+      genreIds.set(genre, id)
+    }
+    return id
+  })
+}
+
+/**
  * Cada entrada es un array y no un objeto: con 5000 titulos, repetir los nombres
  * de campo costaria mas de 200 KB de nada.
  *
- *   [id, preferred, romaji, english, episodios, ficheroPortada, color]
+ *   [id, preferred, romaji, english, episodios, portada, color, nota, generos]
  *
  * romaji y english se guardan como null cuando coinciden con preferred, que es
- * el caso de la mayoria, para no duplicar la misma cadena.
+ * el caso de la mayoria, para no duplicar la misma cadena. `nota` es el
+ * averageScore de AniList (0-100); el cliente lo pasa a estrellas.
  */
 function toRow(media) {
   const preferred = media.title.userPreferred ?? media.title.romaji ?? media.title.english
@@ -104,6 +127,8 @@ function toRow(media) {
     media.episodes ?? null,
     cover,
     media.coverImage?.color ?? null,
+    media.averageScore ?? null,
+    toGenreIds(media.genres),
   ]
 }
 
@@ -132,7 +157,19 @@ const output = {
   generatedAt: new Date().toISOString(),
   source: 'AniList (type: ANIME, sort: POPULARITY_DESC, isAdult: false)',
   coverBase: COVER_BASE,
-  fields: ['id', 'preferred', 'romaji', 'english', 'episodes', 'cover', 'color'],
+  fields: [
+    'id',
+    'preferred',
+    'romaji',
+    'english',
+    'episodes',
+    'cover',
+    'color',
+    'score',
+    'genres',
+  ],
+  // Los generos de cada entrada son indices dentro de esta tabla.
+  genreTable,
   count: rows.length,
   items: rows,
 }

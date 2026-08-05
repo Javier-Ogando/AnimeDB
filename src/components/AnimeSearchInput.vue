@@ -1,13 +1,28 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAnimeSearch } from '@/composables/useAnimeSearch'
-import MediaCard from './MediaCard.vue'
+import AnimeRow from './AnimeRow.vue'
 import type { MediaSummary } from '@/types/anilist'
 
-export type ListDestination = 'personal' | 'shared'
+/** Destino al que puede ir un anime: una lista concreta. */
+export interface SearchDestination {
+  id: string
+  label: string
+}
 
 /** Se emite al elegir destino. Todavia sin implementar el guardado. */
-const emit = defineEmits<{ select: [media: MediaSummary, destination: ListDestination] }>()
+const props = withDefaults(
+  defineProps<{
+    /**
+     * Listas a las que se puede anadir. Con una sola (o ninguna) el boton dice
+     * "Anadir"; con varias, se muestra una por lista.
+     */
+    destinations?: SearchDestination[]
+  }>(),
+  { destinations: () => [] },
+)
+
+const emit = defineEmits<{ select: [media: MediaSummary, destinationId: string] }>()
 
 const { term, results, isLoading, error, minLength, reset } = useAnimeSearch()
 
@@ -22,10 +37,9 @@ const selectedId = ref<number | null>(null)
 const hasQuery = computed(() => term.value.trim().length >= minLength)
 const showPanel = computed(() => isOpen.value && hasQuery.value)
 
-const DESTINATIONS: Array<{ id: ListDestination; label: string }> = [
-  { id: 'personal', label: 'Personal' },
-  { id: 'shared', label: 'Compartida' },
-]
+const targets = computed<SearchDestination[]>(() =>
+  props.destinations.length ? props.destinations : [{ id: '', label: 'Añadir' }],
+)
 
 watch(results, (list) => {
   activeIndex.value = list.length ? 0 : -1
@@ -57,8 +71,9 @@ function toggle(media: MediaSummary) {
   selectedId.value = selectedId.value === media.id ? null : media.id
 }
 
-function pick(media: MediaSummary, destination: ListDestination) {
-  emit('select', media, destination)
+function pick(media: MediaSummary, destinationId: string) {
+  emit('select', media, destinationId)
+  selectedId.value = null
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -193,7 +208,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
             @click="toggle(media)"
             @pointerenter="activeIndex = index"
           >
-            <MediaCard :media="media" variant="search" />
+            <AnimeRow :media="media" />
           </button>
 
           <!-- Destino: aparece solo en la fila marcada. -->
@@ -203,7 +218,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
           >
             <span class="text-[11px] tracking-wide text-faint">Guardar en</span>
             <button
-              v-for="destination in DESTINATIONS"
+              v-for="destination in targets"
               :key="destination.id"
               type="button"
               class="cursor-pointer rounded-full border border-line px-3 py-1 text-xs font-medium text-muted transition hover:border-accent/60 hover:bg-accent/10 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"

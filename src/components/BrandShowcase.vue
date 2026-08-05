@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AnimeCard from './AnimeCard.vue'
+import TitleFormats from './TitleFormats.vue'
 import frierenCover from '@/assets/frieren-cover.jpg'
 import type { MediaSummary } from '@/types/anilist'
 
@@ -26,7 +27,8 @@ const frieren: MediaSummary = {
   totalEpisodes: null,
 }
 
-const genres = ['Aventura', 'Drama', 'Fantasía']
+/** Canonicos de AniList; AnimeCard los traduce al pintarlos. */
+const genres = ['Adventure', 'Drama', 'Fantasy']
 
 /** averageScore 91/100 en AniList -> 4,55 sobre 5. */
 const rating = 4.55
@@ -86,7 +88,16 @@ const rating = 4.55
           :cover="frierenCover"
           :genres="genres"
           :rating="rating"
-        />
+        >
+          <!-- En el login el cuerpo son los tres formatos de titulo, no la
+               sinopsis: es lo que explica que se puede buscar por cualquiera. -->
+          <template #body>
+            <TitleFormats
+              :media="frieren"
+              class="flex-1 rounded-2xl bg-surface-2/60 p-3"
+            />
+          </template>
+        </AnimeCard>
       </div>
 
       <div class="mx-auto max-w-sm text-center">

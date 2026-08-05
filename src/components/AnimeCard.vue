@@ -1,56 +1,60 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatEpisodes } from '@/lib/media'
+import { formatEpisodes, scoreToStars } from '@/lib/media'
+import GenreChips from './GenreChips.vue'
+import MediaCover from './MediaCover.vue'
+import MediaSynopsis from './MediaSynopsis.vue'
+import StarRating from './StarRating.vue'
 import type { MediaSummary } from '@/types/anilist'
 
 /**
- * Card completa de un anime: portada, generos, los tres formatos de titulo,
- * valoracion en estrellas y capitulos. Pensada para reutilizarse dentro de una
- * lista, en el panel del login y donde haga falta.
+ * Card completa de un anime. Aporta la ESTRUCTURA —portada y generos a la
+ * izquierda; titulo, cuerpo y metadatos a la derecha— y deja el contenido en
+ * manos de quien la usa, mediante cuatro huecos:
  *
- * Para la fila compacta del desplegable del buscador, ver MediaCard.vue.
+ *   #cover   la portada            (por defecto MediaCover)
+ *   #aside   debajo de la portada  (por defecto GenreChips)
+ *   #body    el bloque central     (por defecto titulo + sinopsis)
+ *   #meta    la fila inferior      (por defecto valoracion + capitulos)
+ *
+ * Las acciones sobre el anime (quitar, cambiar estado) NO van dentro: se
+ * superponen desde fuera, para no robar ancho al contenido.
+ *
+ * Todos traen su version por defecto, asi que <AnimeCard :media="x" /> ya
+ * funciona; solo se sustituye lo que cambia. El login, por ejemplo, reemplaza
+ * #body por TitleFormats.
+ *
+ * Para la fila compacta del desplegable del buscador, ver AnimeRow.vue.
  */
 const props = withDefaults(
   defineProps<{
     media: MediaSummary
-    /** Portada alternativa (p. ej. una empaquetada); por defecto la de media. */
+    /** Portada alternativa (p. ej. una empaquetada en el repositorio). */
     cover?: string | null
+    /** Generos en ingles. Si no se pasan, se usan los de `media`. */
     genres?: string[]
-    /** Valoracion de 0 a 5. null oculta las estrellas. */
+    /** Valoracion 0-5. Si no se pasa, se deriva del averageScore de `media`. */
     rating?: number | null
-    /**
-     * Capitulos vistos. Si se pasa, la linea de capitulos se muestra como
-     * "13/28"; si no, solo el total que ya sabe formatear formatEpisodes.
-     */
+    /** Capitulos vistos: con esto la linea muestra "13/28". */
     watched?: number | null
+    /**
+     * Version compacta para rejillas de cuatro columnas: menos relleno, portada
+     * mas estrecha, tipografia menor y sinopsis a tres lineas. Sin esto la card
+     * no baja de ~350 px de ancho utiles.
+     */
+    dense?: boolean
   }>(),
-  { cover: null, genres: () => [], rating: null, watched: null },
+  { cover: null, genres: () => [], rating: null, watched: null, dense: false },
 )
+
+/** Romaji, sin decir que lo es; si falta, el preferido. */
+const title = computed(() => props.media.titleRomaji ?? props.media.titlePreferred)
 
 const coverSrc = computed(() => props.cover ?? props.media.coverImage)
 
-/** Tinte con el color dominante de AniList mientras carga la portada. */
-const coverStyle = computed(() => {
-  const color = props.media.coverColor
-  return color
-    ? { background: `linear-gradient(150deg, ${color}59, var(--surface-2) 70%)` }
-    : undefined
-})
+const genreList = computed(() => (props.genres.length ? props.genres : (props.media.genres ?? [])))
 
-/** Los tres formatos, sin repetir los que coinciden entre si. */
-const titles = computed(() => {
-  const rows: Array<{ label: string; value: string }> = []
-  const push = (label: string, value: string | null) => {
-    if (!value) return
-    rows.push({ label, value })
-  }
-
-  push('Romaji', props.media.titleRomaji)
-  push('English', props.media.titleEnglish)
-  push('Preferred', props.media.titlePreferred)
-
-  return rows
-})
+const ratingValue = computed(() => props.rating ?? scoreToStars(props.media.averageScore))
 
 const episodesLabel = computed(() => {
   if (props.watched != null && props.media.episodes) {
@@ -58,113 +62,56 @@ const episodesLabel = computed(() => {
   }
   return formatEpisodes(props.media)
 })
-
-const STARS = 5
-
-/** Ancho de la capa rellena: permite medias estrellas sin trocear iconos. */
-const ratingWidth = computed(() => {
-  const value = Math.min(Math.max(props.rating ?? 0, 0), STARS)
-  return `${(value / STARS) * 100}%`
-})
 </script>
 
 <template>
   <article
-    class="rounded-3xl border border-overlay bg-surface/85 p-4 shadow-2xl shadow-shade backdrop-blur-sm"
+    class="border border-overlay bg-surface/85 shadow-shade backdrop-blur-sm"
+    :class="dense ? 'rounded-2xl p-3 shadow-lg' : 'rounded-3xl p-4 shadow-2xl'"
   >
-    <div class="flex gap-4">
-      <!-- Portada y generos -->
-      <div class="w-[38%] shrink-0">
-        <div
-          class="overflow-hidden rounded-2xl border border-overlay bg-surface-2"
-          :style="coverStyle"
-        >
-          <img
-            v-if="coverSrc"
+    <div class="flex" :class="dense ? 'gap-3' : 'gap-4'">
+      <!-- Columna izquierda -->
+      <div class="shrink-0" :class="dense ? 'w-[34%]' : 'w-[38%]'">
+        <slot name="cover" :src="coverSrc">
+          <MediaCover
             :src="coverSrc"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            referrerpolicy="no-referrer"
-            class="aspect-2/3 w-full object-cover"
+            :color="media.coverColor"
+            class="aspect-2/3 w-full"
+            :class="dense ? 'rounded-xl' : 'rounded-2xl'"
           />
-          <div v-else class="aspect-2/3 w-full" />
-        </div>
+        </slot>
 
-        <div v-if="genres.length" class="mt-2 flex flex-wrap gap-1">
-          <span
-            v-for="genre in genres"
-            :key="genre"
-            class="rounded-full border border-overlay bg-surface-2/80 px-2 py-0.5 text-[9px] tracking-wide text-muted"
-          >
-            {{ genre }}
-          </span>
-        </div>
+        <slot name="aside" :genres="genreList">
+          <GenreChips :genres="genreList" :max="dense ? 2 : 3" class="mt-2" />
+        </slot>
       </div>
 
-      <!-- Titulos, valoracion y capitulos -->
+      <!-- Columna derecha -->
       <div class="flex min-w-0 flex-1 flex-col">
-        <dl class="flex-1 space-y-2 rounded-2xl bg-surface-2/60 p-3">
-          <div v-for="t in titles" :key="t.label">
-            <dt class="text-[9px] font-medium tracking-[0.16em] text-accent/70 uppercase">
-              {{ t.label }}
-            </dt>
-            <dd class="text-[12px] leading-snug text-muted">{{ t.value }}</dd>
-          </div>
-        </dl>
-
-        <div class="mt-3 flex items-center gap-2.5">
-          <!-- Estrellas: una capa vacia y encima otra rellena recortada al
-               porcentaje, para que una valoracion de 4,55 se vea como tal. -->
-          <div
-            v-if="rating != null"
-            class="relative w-max shrink-0"
-            role="img"
-            :aria-label="`Valoración ${rating.toFixed(1)} de ${STARS}`"
+        <slot name="body" :title="title" :media="media">
+          <p
+            class="line-clamp-2 leading-snug font-medium text-body"
+            :class="dense ? 'text-sm' : 'text-base'"
           >
-            <div class="flex gap-0.5 text-line-strong">
-              <svg
-                v-for="i in STARS"
-                :key="`empty-${i}`"
-                class="size-3.5 shrink-0"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9z"
-                />
-              </svg>
-            </div>
-            <div
-              class="absolute inset-y-0 left-0 overflow-hidden"
-              :style="{ width: ratingWidth }"
-              aria-hidden="true"
-            >
-              <div class="flex gap-0.5 text-accent">
-                <svg
-                  v-for="i in STARS"
-                  :key="`full-${i}`"
-                  class="size-3.5 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9z"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
+            {{ title }}
+          </p>
+          <MediaSynopsis
+            :text="media.description"
+            :lines="dense ? 3 : 4"
+            class="mt-1.5"
+          />
+        </slot>
 
-          <span class="ml-auto shrink-0 text-[11px] font-medium text-muted tabular-nums">
-            {{ episodesLabel }}
-          </span>
+        <!-- mt-auto: la fila se queda abajo aunque el cuerpo sea corto. -->
+        <div class="mt-auto flex items-center gap-2" :class="dense ? 'pt-2' : 'pt-3'">
+          <slot name="meta" :rating="ratingValue" :episodes="episodesLabel">
+            <StarRating v-if="ratingValue != null" :value="ratingValue" />
+            <span class="ml-auto shrink-0 text-[11px] font-medium text-muted tabular-nums">
+              {{ episodesLabel }}
+            </span>
+          </slot>
         </div>
       </div>
     </div>
-
-    <!-- Para quien la use dentro de una lista: acciones, miembros, estado… -->
-    <slot name="footer" />
   </article>
 </template>

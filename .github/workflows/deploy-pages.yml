@@ -49,6 +49,8 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          # Opcional: sin él, /admin queda inaccesible en producción.
+          VITE_ADMIN_UIDS: ${{ secrets.VITE_ADMIN_UIDS }}
         run: npm run build
 
       - uses: actions/configure-pages@v5

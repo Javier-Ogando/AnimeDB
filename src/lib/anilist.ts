@@ -25,6 +25,8 @@ const SEARCH_QUERY = `
         episodes
         format
         seasonYear
+        averageScore
+        genres
         title {
           romaji
           english
@@ -38,6 +40,56 @@ const SEARCH_QUERY = `
     }
   }
 `
+
+/**
+ * Sinopsis de un titulo concreto.
+ *
+ * No va en el indice local a proposito: 5000 descripciones son varios MB, y esto
+ * solo se necesita al dar de alta un anime, que es una accion puntual.
+ */
+const DETAIL_QUERY = `
+  query Detail($id: Int!) {
+    Media(id: $id, type: ANIME) {
+      description(asHtml: false)
+    }
+  }
+`
+
+/** Longitud maxima que se guarda: la card muestra cuatro lineas. */
+const DESCRIPTION_LIMIT = 500
+
+function toPlainText(value: string | null): string | null {
+  if (!value) return null
+
+  const text = value
+    // AniList cuela etiquetas incluso con asHtml: false.
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!text) return null
+  return text.length > DESCRIPTION_LIMIT ? `${text.slice(0, DESCRIPTION_LIMIT).trimEnd()}…` : text
+}
+
+/** Devuelve null si falla: una sinopsis ausente no debe impedir el alta. */
+export async function fetchDescription(id: number): Promise<string | null> {
+  try {
+    const response = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query: DETAIL_QUERY, variables: { id } }),
+    })
+    if (!response.ok) return null
+
+    const payload = (await response.json()) as {
+      data?: { Media?: { description?: string | null } | null }
+    }
+    return toPlainText(payload.data?.Media?.description ?? null)
+  } catch {
+    return null
+  }
+}
 
 /** AniList limita las peticiones por minuto; distinguimos este caso del resto. */
 export class AniListRateLimitError extends Error {
@@ -121,6 +173,8 @@ export function toSummary(media: AniListMedia): MediaSummary {
     format: media.format,
     seasonYear: media.seasonYear,
     episodes: media.episodes,
+    genres: media.genres ?? [],
+    averageScore: media.averageScore,
     // Se rellenan al resolver la franquicia completa (ver nota en SEARCH_QUERY).
     seasons: null,
     totalEpisodes: null,
