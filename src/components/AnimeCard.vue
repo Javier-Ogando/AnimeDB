@@ -82,7 +82,9 @@ const episodesLabel = computed(() => {
         </slot>
 
         <slot name="aside" :genres="genreList">
-          <GenreChips :genres="genreList" :max="dense ? 2 : 3" class="mt-2" />
+          <!-- single-line: en una rejilla, una card que envuelve sus categorias
+               queda mas alta que sus vecinas. Las que no caben van al "+X". -->
+          <GenreChips :genres="genreList" :max="dense ? 2 : 3" single-line class="mt-2" />
         </slot>
       </div>
 

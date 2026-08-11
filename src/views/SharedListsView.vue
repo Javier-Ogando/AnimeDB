@@ -2,11 +2,13 @@
 import { onUnmounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useI18n } from '@/lib/i18n'
 import { createSharedList, watchMyLists, type ListWithId } from '@/lib/lists'
 import AppHeader from '@/components/AppHeader.vue'
 import PageHeader from '@/components/PageHeader.vue'
 
 const { user } = useAuth()
+const { t } = useI18n()
 const router = useRouter()
 
 const lists = ref<ListWithId[]>([])
@@ -20,9 +22,7 @@ const name = ref('')
 let unsubscribe: (() => void) | null = null
 
 function describe(e: Error): string {
-  return e.message.includes('permission')
-    ? 'Firestore ha denegado el acceso. Despliega las reglas: npx firebase deploy --only firestore:rules'
-    : 'No se han podido cargar las listas.'
+  return e.message.includes('permission') ? t('error.permissionRead') : t('shared.loadError')
 }
 
 const uid = user.value?.uid
@@ -66,14 +66,12 @@ async function onCreate() {
   <div class="min-h-dvh">
     <AppHeader />
 
-    <main class="mx-auto max-w-6xl px-6 py-10">
+    <main class="mx-auto max-w-6xl px-6 pt-10 pb-28">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <PageHeader
-          kicker="Con quien quieras"
-          title="Listas compartidas"
+          :kicker="t('shared.kicker')"
           :count="lists.length"
-          :unit="['lista', 'listas']"
-          hint="Cada lista tiene su propio enlace de invitación. Quien lo abra entra y puede añadir."
+          :unit="[t('unit.listOne'), t('unit.listMany')]"
           class="min-w-0 flex-1"
         />
 
@@ -93,7 +91,7 @@ async function onCreate() {
           >
             <path d="M12 5v14M5 12h14" />
           </svg>
-          Nueva lista
+          {{ t('shared.new') }}
         </button>
       </div>
 
@@ -105,7 +103,7 @@ async function onCreate() {
         <input
           v-model="name"
           type="text"
-          placeholder="Nombre de la lista"
+          :placeholder="t('shared.name')"
           maxlength="60"
           class="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2 text-sm text-body transition placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:outline-none"
         />
@@ -114,7 +112,7 @@ async function onCreate() {
           :disabled="isCreating"
           class="cursor-pointer rounded-full border border-accent/50 px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {{ isCreating ? 'Creando…' : 'Crear' }}
+          {{ isCreating ? t('shared.creating') : t('shared.create') }}
         </button>
       </form>
 
@@ -126,13 +124,13 @@ async function onCreate() {
         {{ error }}
       </p>
 
-      <p v-if="isLoading" class="mt-8 text-sm text-muted">Cargando…</p>
+      <p v-if="isLoading" class="mt-8 text-sm text-muted">{{ t('common.loading') }}</p>
 
       <p
         v-else-if="!lists.length"
         class="mt-8 rounded-2xl border border-line bg-surface/60 px-4 py-8 text-center text-sm text-muted"
       >
-        No tienes ninguna lista compartida. Crea una con el botón de arriba y comparte su enlace.
+        {{ t('shared.empty') }}
       </p>
 
       <ul v-else class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -143,13 +141,14 @@ async function onCreate() {
           >
             <p class="font-display text-lg tracking-tight">{{ list.name }}</p>
             <p class="mt-1 text-xs text-muted tabular-nums">
-              {{ list.itemCount ?? 0 }} {{ (list.itemCount ?? 0) === 1 ? 'título' : 'títulos' }}
+              {{ list.itemCount ?? 0 }}
+              {{ (list.itemCount ?? 0) === 1 ? t('unit.titleOne') : t('unit.titleMany') }}
               ·
               {{ list.memberUids?.length ?? 1 }}
-              {{ (list.memberUids?.length ?? 1) === 1 ? 'miembro' : 'miembros' }}
+              {{ (list.memberUids?.length ?? 1) === 1 ? t('unit.memberOne') : t('unit.memberMany') }}
             </p>
             <p v-if="list.ownerUid === user?.uid" class="mt-4 text-[11px] text-faint uppercase">
-              Tuya
+              {{ t('shared.own') }}
             </p>
           </RouterLink>
         </li>

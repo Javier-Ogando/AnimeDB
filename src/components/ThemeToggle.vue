@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { useTheme } from '@/composables/useTheme'
+import { useI18n } from '@/lib/i18n'
 
 const { isDark, toggle } = useTheme()
+const { t } = useI18n()
 </script>
 
 <template>
   <button
     type="button"
     class="grid size-9 cursor-pointer place-items-center rounded-full border border-line text-muted transition hover:border-accent/60 hover:text-body"
-    :aria-label="isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+    :aria-label="isDark ? t('theme.toLight') : t('theme.toDark')"
     :aria-pressed="!isDark"
-    :title="isDark ? 'Modo claro' : 'Modo oscuro'"
+    :title="isDark ? t('theme.light') : t('theme.dark')"
     @click="toggle"
   >
     <!-- Sol: se ofrece pasar a claro. -->

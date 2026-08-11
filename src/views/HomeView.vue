@@ -3,6 +3,7 @@ import { computed, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useToast } from '@/composables/useToast'
+import { useI18n } from '@/lib/i18n'
 import {
   addAnimeToList,
   ensurePersonalList,
@@ -16,12 +17,13 @@ import type { MediaSummary } from '@/types/anilist'
 
 const { user } = useAuth()
 const { notify } = useToast()
+const { t } = useI18n()
 
-const cards = [
-  { to: '/personal', title: 'Mis pendientes', hint: 'Tu lista personal' },
-  { to: '/general', title: 'General', hint: 'Todo lo registrado en la app' },
-  { to: '/compartidas', title: 'Listas compartidas', hint: 'Por link de invitación' },
-]
+const cards = computed(() => [
+  { to: '/personal', title: t('personal.title'), hint: t('home.pendingHint') },
+  { to: '/general', title: t('general.title'), hint: t('home.generalHint') },
+  { to: '/compartidas', title: t('shared.title'), hint: t('home.sharedHint') },
+])
 
 /** Las compartidas son destinos del buscador, así que hay que conocerlas. */
 const sharedLists = ref<ListWithId[]>([])
@@ -35,7 +37,7 @@ if (uid) {
 onUnmounted(() => unsubscribe?.())
 
 const destinations = computed<SearchDestination[]>(() => [
-  { id: 'personal', label: 'Personal' },
+  { id: 'personal', label: t('home.destinationPersonal') },
   ...sharedLists.value.map((list) => ({ id: list.id, label: list.name })),
 ])
 
@@ -52,12 +54,17 @@ async function onSelect(media: MediaSummary, destinationId: string) {
     await addAnimeToList(listId, media, user.value.uid)
 
     const target = destinations.value.find((d) => d.id === destinationId)
-    notify(`«${media.titleRomaji ?? media.titlePreferred}» añadido a ${target?.label ?? 'tu lista'}.`)
+    notify(
+      t('home.added', {
+        title: media.titleRomaji ?? media.titlePreferred,
+        target: target?.label ?? t('home.defaultTarget'),
+      }),
+    )
   } catch (e) {
     notify(
       (e as Error).message.includes('permission')
-        ? 'Firestore ha denegado la escritura. Despliega las reglas: npx firebase deploy --only firestore:rules'
-        : 'No se ha podido añadir.',
+        ? t('error.permissionWrite')
+        : t('home.addError'),
       'error',
     )
   }
@@ -68,7 +75,7 @@ async function onSelect(media: MediaSummary, destinationId: string) {
   <div class="min-h-dvh">
     <AppHeader />
 
-    <main class="mx-auto max-w-5xl px-6 py-12">
+    <main class="mx-auto max-w-5xl px-6 pt-12 pb-28">
       <div class="flex justify-center">
         <AnimeSearchInput :destinations="destinations" @select="onSelect" />
       </div>
@@ -83,7 +90,7 @@ async function onSelect(media: MediaSummary, destinationId: string) {
         >
           <h2 class="text-sm font-medium">{{ card.title }}</h2>
           <p class="mt-1 text-xs text-muted">{{ card.hint }}</p>
-          <p class="mt-6 text-xs text-accent">Abrir →</p>
+          <p class="mt-6 text-xs text-accent">{{ t('home.open') }}</p>
         </RouterLink>
       </div>
     </main>

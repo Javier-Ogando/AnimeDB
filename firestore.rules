@@ -77,7 +77,13 @@ service cloud.firestore {
       // documento lo leen los demas.
       allow update: if isSelf(uid)
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['displayName', 'photoURL', 'email', 'lastLoginAt']);
+             .hasOnly([
+               'displayName', 'photoURL', 'email', 'lastLoginAt',
+               // Perfil y ajustes propios de la aplicacion. photoOverride va
+               // aparte de photoURL: esa la reescribe el proveedor en cada
+               // login y se llevaria por delante la foto elegida aqui.
+               'nickname', 'photoOverride', 'preferences'
+             ]);
 
       allow delete: if false;
     }
@@ -85,11 +91,214 @@ service cloud.firestore {
     // ---------- media (cache de AniList) ----------
 
     match /media/{mediaId} {
+
+      /**
+       * watchedBy: cada uno se anade o se quita SOLO A SI MISMO.
+       *
+       * La app lo escribe con arrayUnion(uid)/arrayRemove(uid), pero las reglas
+       * NO ven la operacion, solo el array resultante. Asi que se comparan los
+       * dos estados como conjuntos: lo que entra y lo que sale tiene que ser, a
+       * lo sumo, el propio uid. Con eso da igual si el cliente uso arrayUnion,
+       * arrayRemove o escribio el array a mano.
+       *
+       * De paso esto bloquea el borrado encubierto: un set() SIN merge que se
+       * llevara por delante el watchedBy ajeno aparece aqui como "salen uids que
+       * no son el mio" y se deniega.
+       *
+       * Se usan conjuntos y no comparacion de listas a proposito: arrayRemove
+       * quita el uid de donde este, no del final, asi que `antes == despues +
+       * [uid]` fallaria en cuanto el uid no fuera el ultimo del array.
+       *
+       * `before` sale de un ternario contra resource == null: en una creacion
+       * (addAnimeToList o el primer updateItemStatus del anime) el documento no
+       * existe y desreferenciar resource.data abortaria la evaluacion, que se
+       * traduce en permission-denied. El .get(..., []) cubre el otro caso: los
+       * documentos de cache antiguos no tienen el campo.
+       *
+       * Lo que NO garantiza: reordenar o duplicar uids ajenos sigue siendo
+       * posible (un conjunto ignora orden y repetidos), pero no cambia QUIEN
+       * aparece, que es lo unico que se pinta. Y tampoco se comprueba que quien
+       * se apunta tenga de verdad el anime en 'done' en alguna lista: eso exige
+       * leer lists/{id}/items/{mediaId}, que viaja en el MISMO writeBatch y
+       * get()/exists() no ven el lote a medias.
+       */
+      function watchedByOnlySelf() {
+        let before = resource == null ? [] : resource.data.get('watchedBy', []);
+        let after = request.resource.data.get('watchedBy', []);
+
+        return before is list
+          && after is list
+          && before.toSet().difference(after.toSet()).hasOnly([request.auth.uid])
+          && after.toSet().difference(before.toSet()).hasOnly([request.auth.uid]);
+      }
+
+      /**
+       * scoreSum/scoreCount: el agregado de la valoracion de la comunidad.
+       *
+       * saveReview() los mueve con increment(), pero —otra vez— las reglas ven
+       * el valor RESULTANTE, no el delta. Se reconstruye restando: la diferencia
+       * entre request.resource.data y resource.data. Los tres casos posibles son
+       * los tres unicos que la app produce:
+       *
+       *   +1 voto  -> resena nueva: la suma crece una puntuacion valida [0.5, 5]
+       *    0 votos -> edicion: la suma se mueve entre -4.5 y +4.5 (de un extremo
+       *               al otro), el 0 incluido porque cambiar solo el comentario
+       *               reescribe el agregado sin moverlo. Este es tambien el caso
+       *               de las escrituras que no tocan el agregado (addAnimeToList
+       *               y updateItemStatus): con merge, los campos llegan intactos
+       *               y ambas diferencias valen 0.
+       *   -1 voto  -> baja de una resena: la suma cae una puntuacion valida.
+       *
+       * Los limites [0.5, 5] son los mismos que valida la regla de reviews/{uid}
+       * mas abajo, para que no puedan contradecirse.
+       *
+       * Sin techo ni suelo el agregado seria papel mojado: bastaba un
+       * scoreSum: 999999 desde la consola del navegador para falsear la media de
+       * toda la aplicacion.
+       *
+       * Lo que NO se puede garantizar desde aqui:
+       *  - Que el delta corresponda a UNA resena real y propia. La resena se
+       *    escribe en el mismo writeBatch y get()/exists() no ven el lote, asi
+       *    que no hay forma de cruzarlos.
+       *  - Que nadie repita la jugada: cada escritura queda acotada, pero un
+       *    cliente rebelde puede encadenar N escrituras de +5. Las reglas acotan
+       *    el PASO, no el total; cerrarlo del todo pide un trigger de servidor.
+       *  - Que scoreSum/scoreCount cuadren con el numero real de resenas: nadie
+       *    recuenta la subcoleccion.
+       */
+      function scoreAggregateOk() {
+        let sumBefore = resource == null ? 0 : resource.data.get('scoreSum', 0);
+        let sumAfter = request.resource.data.get('scoreSum', 0);
+        let countBefore = resource == null ? 0 : resource.data.get('scoreCount', 0);
+        let countAfter = request.resource.data.get('scoreCount', 0);
+
+        return sumBefore is number
+          && sumAfter is number
+          && countBefore is number
+          && countAfter is number
+          // Un agregado negativo no significa nada y daria medias negativas.
+          && sumAfter >= 0
+          && countAfter >= 0
+          && (
+            (countAfter - countBefore == 1
+              && sumAfter - sumBefore >= 0.5 && sumAfter - sumBefore <= 5) ||
+            (countAfter - countBefore == 0
+              && sumAfter - sumBefore >= -4.5 && sumAfter - sumBefore <= 4.5) ||
+            (countAfter - countBefore == -1
+              && sumAfter - sumBefore <= -0.5 && sumAfter - sumBefore >= -5)
+          );
+      }
+
       allow read: if isSignedIn();
-      // Cualquier autenticado puede rellenar la cache: son datos publicos
-      // de AniList, no hay nada que proteger.
-      allow create, update: if isSignedIn();
+
+      // Los campos de cache de AniList (titles, coverImage, episodes, genres,
+      // averageScore, description, seasons, totalEpisodes, updatedAt...) los
+      // escribe cualquier autenticado sin mas: son datos publicos, no hay nada
+      // que proteger y quien da de alta un anime tiene que poder rellenarlos.
+      //
+      // Lo que si esta acotado son los dos campos que NO son cache y viven en el
+      // mismo documento: watchedBy y el agregado de valoraciones.
+      //
+      // create y update van juntos —al contrario que en replies/{replyId}— porque
+      // ambos helpers tratan el documento inexistente con `resource == null` y no
+      // desreferencian nada que pueda faltar.
+      allow create, update: if isSignedIn()
+        && watchedByOnlySelf()
+        && scoreAggregateOk();
+
       allow delete: if false;
+
+      // ---------- resenas de la comunidad ----------
+
+      match /reviews/{uid} {
+        allow read: if isSignedIn();
+
+        // Solo puedes firmar tu propia resena, y la puntuacion tiene que estar
+        // en rango: sin esta comprobacion, un 500 reventaria la media.
+        allow create, update: if isSelf(uid)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.score is number
+          && request.resource.data.score >= 0.5
+          && request.resource.data.score <= 5
+          && request.resource.data.comment is string
+          && request.resource.data.comment.size() <= 2000;
+
+        allow delete: if isSelf(uid);
+
+        // ---------- hilo de la resena ----------
+        //
+        // No se comprueba en ningun sitio que la resena padre exista, y es a
+        // proposito:
+        //   - seria una lectura extra por cada respuesta,
+        //   - get()/exists() NO ven lo que se escribe en el mismo writeBatch, asi
+        //     que un lote que creara resena y respuesta juntas se caeria aunque
+        //     todo estuviese bien.
+        // Escribir en el hilo de una resena inexistente no rompe nada: son
+        // documentos huerfanos que la app no lee nunca.
+
+        match /replies/{replyId} {
+          allow read: if isSignedIn();
+
+          // Firmas con tu uid y el texto tiene tope. El tope va AQUI y no solo en
+          // la interfaz: al SDK de Firestore se le habla desde la consola del
+          // navegador sin pasar por la app.
+          //
+          // parentId con .get(): si el campo no viniera, leerlo directamente
+          // abortaria la evaluacion y saldria permission-denied.
+          allow create: if isSignedIn()
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 1000
+            && (
+              request.resource.data.get('parentId', null) == null ||
+              request.resource.data.get('parentId', null) is string
+            );
+
+          // Editar: solo el autor, sin cambiar de dueno ni de sitio en el hilo
+          // (mover parentId reordenaria la conversacion de otros).
+          //
+          // Separado de create y no `allow create, update` en la misma linea:
+          // aqui se lee resource.data, que en una creacion es null y reventaria
+          // la regla entera.
+          allow update: if isSignedIn()
+            && resource.data.uid == request.auth.uid
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.get('parentId', null) == resource.data.get('parentId', null)
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 1000;
+
+          // Borrar: su autor. En un delete el documento existe por definicion,
+          // asi que leer resource.data es seguro.
+          allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+        }
+
+        match /reactions/{reactorUid} {
+          allow read: if isSignedIn();
+
+          // El ID del documento es el uid de quien reacciona: por eso "una
+          // reaccion por persona y resena" no necesita ninguna comprobacion
+          // extra, y alternarla es escribir o borrar ESTE documento. Nadie puede
+          // contar dos veces ni reaccionar en nombre de otro.
+          //
+          // El emoji se valida por longitud y no con una lista blanca de los
+          // cuatro literales: el corazon es una secuencia de varios puntos de
+          // codigo (lleva selector de variacion), y que este archivo y el bundle
+          // coincidieran byte a byte es fragil de mas para algo que, cuando falla,
+          // falla como permission-denied silencioso. El juego cerrado lo pone la
+          // interfaz (REACTION_EMOJIS en src/lib/threads.ts) y lo peor que puede
+          // colar un cliente rebelde es un texto corto en SU propio documento,
+          // que la interfaz no cuenta.
+          allow create, update: if isSelf(reactorUid)
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.emoji is string
+            && request.resource.data.emoji.size() > 0
+            && request.resource.data.emoji.size() <= 12;
+
+          allow delete: if isSelf(reactorUid);
+        }
+      }
     }
 
     // ---------- lists ----------
@@ -207,8 +416,14 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && isMemberOf(request.resource.data.listId);
 
-      // Revocar / contar usos: solo quien la creo.
-      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      // Revocar: quien la creo o cualquier miembro de la lista. Hace falta lo
+      // segundo porque al generar un enlace nuevo se revocan los anteriores en
+      // el mismo lote, y esos pudo crearlos otro miembro: con la regla limitada
+      // al autor, el lote entero se caia y no se generaba nada.
+      allow update: if isSignedIn() && (
+        resource.data.createdBy == request.auth.uid ||
+        isMemberOf(resource.data.listId)
+      );
       allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
     }
 

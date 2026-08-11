@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
 import { useAuth } from '@/composables/useAuth'
+import { useI18n } from '@/lib/i18n'
 import {
   addAnimeToList,
   ensurePersonalList,
@@ -18,6 +19,7 @@ import type { MediaSummary } from '@/types/anilist'
 import type { ItemStatus } from '@/types/models'
 
 const { user } = useAuth()
+const { t } = useI18n()
 
 const items = ref<ListItem[]>([])
 const listId = ref<string | null>(null)
@@ -51,9 +53,7 @@ async function start() {
 
 /** El fallo esperado hoy es permission-denied: las reglas no estan desplegadas. */
 function describe(e: Error): string {
-  return e.message.includes('permission')
-    ? 'Firestore ha denegado el acceso. Despliega las reglas: npx firebase deploy --only firestore:rules'
-    : 'No se ha podido cargar la lista.'
+  return e.message.includes('permission') ? t('error.permissionRead') : t('personal.loadError')
 }
 
 void start()
@@ -91,13 +91,11 @@ async function onRemove(media: MediaSummary) {
   <div class="min-h-dvh">
     <AppHeader />
 
-    <main class="mx-auto max-w-6xl px-6 py-10">
+    <main class="mx-auto max-w-6xl px-6 pt-10 pb-28">
       <PageHeader
-        kicker="Tu lista"
-        title="Mis pendientes"
+        :kicker="t('personal.kicker')"
         :count="items.length"
-        :unit="['título', 'títulos']"
-        hint="Solo la ves tú. Busca cualquier anime y guárdalo aquí para no perderle la pista."
+        :unit="[t('unit.titleOne'), t('unit.titleMany')]"
       />
 
       <div class="mt-6 flex">
@@ -113,11 +111,11 @@ async function onRemove(media: MediaSummary) {
       </p>
 
       <div class="relative z-0 mt-8">
-        <p v-if="isLoading" class="text-sm text-muted">Cargando…</p>
+        <p v-if="isLoading" class="text-sm text-muted">{{ t('common.loading') }}</p>
         <AnimeGrid
           v-else
           :media="items.map(itemToMedia)"
-          empty="Busca un anime arriba y añádelo a tus pendientes."
+          :empty="t('personal.empty')"
           manage
           @remove="onRemove"
           @status="onStatus"

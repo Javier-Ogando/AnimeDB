@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from '@/lib/i18n'
 import type { ListRole } from '@/types/models'
 import type { ListWithId } from '@/lib/lists'
 
@@ -26,10 +27,49 @@ const emit = defineEmits<{
   remove: []
 }>()
 
+const { t } = useI18n()
+
+const root = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
 const name = ref(props.list.name)
 const isCopied = ref(false)
 const confirmDelete = ref(false)
+
+/*
+ * Al cerrar se desarma TODO el estado transitorio. Sin esto, la secuencia
+ * "Eliminar la lista" -> "¿Seguro?" -> cerrar el panel creyendo que has
+ * cancelado -> reabrir dejaba la confirmacion armada, y un solo toque en "Si"
+ * borraba la lista y todos sus items sin vuelta atras.
+ */
+watch(isOpen, (open) => {
+  if (open) return
+  confirmDelete.value = false
+  isCopied.value = false
+  name.value = props.list.name
+})
+
+/*
+ * Cierre al pulsar fuera y con Escape. El patron es el mismo que en
+ * ItemMenu.vue: pointerdown en document y comprobacion de contains, que cierra
+ * antes de que el navegador mueva el foco.
+ */
+function onPointerDown(event: PointerEvent) {
+  if (!root.value?.contains(event.target as Node)) isOpen.value = false
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && isOpen.value) isOpen.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onPointerDown)
+  document.addEventListener('keydown', onKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onPointerDown)
+  document.removeEventListener('keydown', onKeydown)
+})
 
 // Si la lista se renombra desde otra sesion, el campo debe reflejarlo.
 watch(
@@ -39,11 +79,11 @@ watch(
   },
 )
 
-const ROLES: Array<{ id: ListRole; label: string; hint: string }> = [
-  { id: 'owner', label: 'Propietario', hint: 'Todo, incluidos roles y borrar' },
-  { id: 'manager', label: 'Gestor', hint: 'Añadir, quitar, renombrar, invitar' },
-  { id: 'viewer', label: 'Visor', hint: 'Solo ver' },
-]
+const ROLES = computed<Array<{ id: ListRole; label: string; hint: string }>>(() => [
+  { id: 'owner', label: t('shared.roleOwner'), hint: t('shared.roleOwnerHint') },
+  { id: 'manager', label: t('shared.roleManager'), hint: t('shared.roleManagerHint') },
+  { id: 'viewer', label: t('shared.roleViewer'), hint: t('shared.roleViewerHint') },
+])
 
 async function onCopy() {
   if (!props.inviteLink) return
@@ -63,12 +103,13 @@ function roleOfMember(uid: string): ListRole {
 </script>
 
 <template>
-  <div class="relative">
+  <div ref="root" class="relative">
     <button
       type="button"
+      aria-haspopup="dialog"
       class="float-pill grid size-9 cursor-pointer place-items-center text-muted transition hover:text-body"
       :aria-expanded="isOpen"
-      aria-label="Ajustes de la lista"
+      :aria-label="t('shared.settingsAria')"
       @click="isOpen = !isOpen"
     >
       <svg
@@ -88,11 +129,13 @@ function roleOfMember(uid: string): ListRole {
       </svg>
     </button>
 
+    <!-- El ancho se limita al hueco disponible: con w-80 fijo, en un movil de
+         320 px el panel se salia por la izquierda. -->
     <div
       v-if="isOpen"
-      class="float-pill absolute top-full right-0 z-40 mt-2 w-80 !rounded-2xl p-4"
+      class="float-pill absolute top-full right-0 z-40 mt-2 w-[min(20rem,calc(100vw-3rem))] !rounded-2xl p-4"
     >
-      <p class="text-[11px] tracking-[0.2em] text-faint uppercase">Ajustes</p>
+      <p class="text-[11px] tracking-[0.2em] text-faint uppercase">{{ t('shared.settings') }}</p>
 
       <!-- Nombre -->
       <template v-if="role === 'owner' || role === 'manager'">
@@ -101,7 +144,7 @@ function roleOfMember(uid: string): ListRole {
             v-model="name"
             type="text"
             maxlength="60"
-            aria-label="Nombre de la lista"
+            :aria-label="t('shared.name')"
             class="min-w-0 flex-1 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-body focus:border-accent/60 focus:outline-none"
           />
           <button
@@ -109,18 +152,18 @@ function roleOfMember(uid: string): ListRole {
             :disabled="name.trim() === list.name"
             class="shrink-0 cursor-pointer rounded-full border border-accent/50 px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Guardar
+            {{ t('prefs.save') }}
           </button>
         </form>
 
         <!-- Enlace de invitacion -->
         <div class="mt-4">
-          <p class="text-[10px] tracking-[0.18em] text-faint uppercase">Invitación</p>
+          <p class="text-[10px] tracking-[0.18em] text-faint uppercase">{{ t('shared.invite') }}</p>
           <div v-if="inviteLink" class="mt-2 flex items-center gap-2">
             <input
               :value="inviteLink"
               readonly
-              aria-label="Enlace de invitación"
+              :aria-label="t('shared.inviteLink')"
               class="min-w-0 flex-1 rounded-full border border-line bg-surface px-3 py-1.5 text-[11px] text-muted focus:outline-none"
               @focus="($event.target as HTMLInputElement).select()"
             />
@@ -129,7 +172,7 @@ function roleOfMember(uid: string): ListRole {
               class="shrink-0 cursor-pointer rounded-full border border-line px-3 py-1.5 text-xs text-muted transition hover:border-accent/60 hover:text-body"
               @click="onCopy"
             >
-              {{ isCopied ? '¡Hecho!' : 'Copiar' }}
+              {{ isCopied ? t('shared.copied') : t('shared.copy') }}
             </button>
           </div>
           <button
@@ -137,7 +180,7 @@ function roleOfMember(uid: string): ListRole {
             class="mt-2 cursor-pointer text-[11px] text-accent underline underline-offset-2"
             @click="emit('regenerate')"
           >
-            {{ inviteLink ? 'Generar uno nuevo (invalida el anterior)' : 'Generar enlace' }}
+            {{ inviteLink ? t('shared.regenerate') : t('shared.generateLink') }}
           </button>
         </div>
       </template>
@@ -145,7 +188,7 @@ function roleOfMember(uid: string): ListRole {
       <!-- Miembros y roles: solo el propietario -->
       <div class="mt-4">
         <p class="text-[10px] tracking-[0.18em] text-faint uppercase">
-          Miembros ({{ list.memberUids?.length ?? 1 }})
+          {{ t('shared.members', { count: list.memberUids?.length ?? 1 }) }}
         </p>
 
         <ul class="mt-2 space-y-2">
@@ -164,8 +207,8 @@ function roleOfMember(uid: string): ListRole {
             <span v-else class="size-6 shrink-0 rounded-full bg-surface-2" aria-hidden="true" />
 
             <span class="min-w-0 flex-1 truncate text-xs text-body">
-              {{ profiles.get(uid)?.displayName ?? 'Usuario' }}
-              <span v-if="uid === myUid" class="text-faint">(tú)</span>
+              {{ profiles.get(uid)?.displayName ?? t('common.user') }}
+              <span v-if="uid === myUid" class="text-faint">{{ t('common.you') }}</span>
             </span>
 
             <!-- Al propietario no se le cambia el rol: perderia el control. -->
@@ -173,7 +216,11 @@ function roleOfMember(uid: string): ListRole {
               v-if="role === 'owner' && uid !== list.ownerUid"
               :value="roleOfMember(uid)"
               class="shrink-0 cursor-pointer rounded-full border border-line bg-surface px-2 py-1 text-[11px] text-muted focus:border-accent/60 focus:outline-none"
-              :aria-label="`Rol de ${profiles.get(uid)?.displayName ?? 'usuario'}`"
+              :aria-label="
+                t('shared.roleOf', {
+                  name: profiles.get(uid)?.displayName ?? t('common.userLowercase'),
+                })
+              "
               @change="emit('role', uid, ($event.target as HTMLSelectElement).value as ListRole)"
             >
               <option v-for="option in ROLES" :key="option.id" :value="option.id">
@@ -195,30 +242,31 @@ function roleOfMember(uid: string): ListRole {
           class="cursor-pointer text-xs font-medium text-red-400 transition hover:text-red-300"
           @click="confirmDelete = true"
         >
-          Eliminar la lista
+          {{ t('shared.deleteList') }}
         </button>
         <div v-else class="flex items-center gap-2">
-          <span class="text-xs text-muted">¿Seguro? No se puede deshacer.</span>
+          <span class="text-xs text-muted">{{ t('shared.deleteConfirm') }}</span>
           <button
             type="button"
             class="cursor-pointer rounded-full bg-red-500/15 px-3 py-1 text-xs font-medium text-red-400"
             @click="emit('remove')"
           >
-            Sí
+            {{ t('common.yes') }}
           </button>
           <button
             type="button"
             class="cursor-pointer text-xs text-faint"
             @click="confirmDelete = false"
           >
-            No
+            {{ t('common.no') }}
           </button>
         </div>
       </div>
 
       <p v-if="role === 'viewer'" class="mt-3 text-xs leading-relaxed text-faint">
-        Tu rol es <strong class="text-muted">Visor</strong>: puedes ver la lista, pero no añadir ni
-        quitar. Pide a quien te invitó que te suba a Gestor.
+        {{ t('shared.viewerNoteBefore')
+        }}<strong class="text-muted">{{ t('shared.roleViewer') }}</strong
+        >{{ t('shared.viewerNoteAfter') }}
       </p>
     </div>
   </div>

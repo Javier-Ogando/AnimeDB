@@ -3,6 +3,7 @@ import { computed, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useToast } from '@/composables/useToast'
+import { useI18n } from '@/lib/i18n'
 import {
   addAnimeToList,
   canEdit,
@@ -34,6 +35,7 @@ const route = useRoute()
 const router = useRouter()
 const { user } = useAuth()
 const { notify } = useToast()
+const { t } = useI18n()
 
 const listId = String(route.params.listId)
 
@@ -51,9 +53,7 @@ const myRole = computed(() => roleOf(list.value, user.value?.uid))
 const canWrite = computed(() => canEdit(myRole.value))
 
 function describe(e: Error): string {
-  return e.message.includes('permission')
-    ? 'Firestore ha denegado la operación. Puede que tu rol en esta lista no lo permita.'
-    : 'No se ha podido completar la operación.'
+  return e.message.includes('permission') ? t('error.permissionRole') : t('error.generic')
 }
 
 async function loadList() {
@@ -67,7 +67,7 @@ async function start() {
   try {
     await loadList()
     if (!list.value) {
-      error.value = 'Esta lista no existe o ya no tienes acceso.'
+      error.value = t('shared.notFound')
       isLoading.value = false
       return
     }
@@ -110,7 +110,7 @@ async function run(action: () => Promise<void>, ok?: string) {
 const onAdd = (media: MediaSummary) =>
   run(
     () => addAnimeToList(listId, media, user.value!.uid),
-    `«${media.titleRomaji ?? media.titlePreferred}» añadido.`,
+    t('shared.added', { title: media.titleRomaji ?? media.titlePreferred }),
   )
 
 const onRemove = (media: MediaSummary) => run(() => removeAnimeFromList(listId, media.id))
@@ -122,19 +122,19 @@ const onRename = (name: string) =>
   run(async () => {
     await renameList(listId, name)
     await loadList()
-  }, 'Nombre actualizado.')
+  }, t('shared.renamed'))
 
 const onRole = (uid: string, role: ListRole) =>
   run(async () => {
     await setMemberRole(listId, uid, role)
     await loadList()
-  }, 'Rol actualizado.')
+  }, t('shared.roleUpdated'))
 
 const onRegenerate = () =>
   run(async () => {
     const token = await createInvite(listId, user.value!.uid)
     link.value = inviteUrl(token)
-  }, 'Enlace nuevo generado.')
+  }, t('shared.linkRegenerated'))
 
 const onDelete = () =>
   run(async () => {
@@ -147,12 +147,12 @@ const onDelete = () =>
   <div class="min-h-dvh">
     <AppHeader />
 
-    <main class="mx-auto max-w-6xl px-6 py-10">
+    <main class="mx-auto max-w-6xl px-6 pt-10 pb-28">
       <div class="flex items-start justify-between gap-4">
         <PageHeader
-          :kicker="list?.name ?? 'Lista compartida'"
+          :kicker="list?.name ?? t('shared.listFallback')"
           :count="items.length"
-          :unit="['título', 'títulos']"
+          :unit="[t('unit.titleOne'), t('unit.titleMany')]"
           class="min-w-0 flex-1"
         />
 
@@ -176,7 +176,7 @@ const onDelete = () =>
         <AnimeSearchInput @select="onAdd" />
       </div>
       <p v-else-if="list" class="mt-6 text-xs text-faint">
-        Tu rol en esta lista es solo de lectura.
+        {{ t('shared.readOnly') }}
       </p>
 
       <p
@@ -188,11 +188,11 @@ const onDelete = () =>
       </p>
 
       <div class="relative z-0 mt-8">
-        <p v-if="isLoading" class="text-sm text-muted">Cargando…</p>
+        <p v-if="isLoading" class="text-sm text-muted">{{ t('common.loading') }}</p>
         <AnimeGrid
           v-else
           :media="items.map(itemToMedia)"
-          empty="Aún no hay nada en esta lista. Busca un anime arriba."
+          :empty="t('shared.itemsEmpty')"
           :manage="canWrite"
           @remove="onRemove"
           @status="onStatus"

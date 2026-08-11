@@ -3,9 +3,12 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { fetchLastIndexRun, indexWorkflowUrl, type WorkflowRun } from '@/lib/admin'
 import { allIndexedMedia, getIndexMeta, type IndexMeta } from '@/lib/animeIndex'
+import { useI18n } from '@/lib/i18n'
 import { scoreToStars, translateGenre } from '@/lib/media'
 import BrandMark from '@/components/BrandMark.vue'
 import type { MediaSummary } from '@/types/anilist'
+
+const { t, locale } = useI18n()
 
 const media = ref<MediaSummary[]>([])
 const meta = ref<IndexMeta | null>(null)
@@ -31,32 +34,32 @@ onMounted(async () => {
 const CHECKS = [
   {
     id: 'no-score',
-    label: 'Sin valoración',
-    hint: 'Estrenos sin votos suficientes en AniList',
+    labelKey: 'status.checkScore',
+    hintKey: 'status.checkScoreHint',
     test: (m: MediaSummary) => m.averageScore == null,
   },
   {
     id: 'no-genres',
-    label: 'Sin género',
-    hint: 'Entradas incompletas en AniList',
+    labelKey: 'status.checkGenres',
+    hintKey: 'status.checkGenresHint',
     test: (m: MediaSummary) => !(m.genres ?? []).length,
   },
   {
     id: 'no-cover',
-    label: 'Sin portada',
-    hint: 'Se pintan con el color dominante',
+    labelKey: 'status.checkCover',
+    hintKey: 'status.checkCoverHint',
     test: (m: MediaSummary) => !m.coverImage,
   },
   {
     id: 'no-english',
-    label: 'Sin título inglés',
-    hint: 'Solo se pueden buscar por romaji',
+    labelKey: 'status.checkEnglish',
+    hintKey: 'status.checkEnglishHint',
     test: (m: MediaSummary) => !m.titleEnglish,
   },
   {
     id: 'no-episodes',
-    label: 'Sin nº de capítulos',
-    hint: 'En emisión o sin anunciar',
+    labelKey: 'status.checkEpisodes',
+    hintKey: 'status.checkEpisodesHint',
     test: (m: MediaSummary) => !m.episodes,
   },
 ] as const
@@ -109,24 +112,26 @@ const generatedLabel = computed(() => {
   if (!iso) return '—'
 
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
-  if (days <= 0) return 'hoy'
-  return days === 1 ? 'hace 1 día' : `hace ${days} días`
+  if (days <= 0) return t('status.today')
+  return t(days === 1 ? 'status.daysAgoOne' : 'status.daysAgoMany', { count: days })
 })
 
 const generatedExact = computed(() =>
-  meta.value?.generatedAt ? new Date(meta.value.generatedAt).toLocaleString('es-ES') : '',
+  meta.value?.generatedAt ? new Date(meta.value.generatedAt).toLocaleString(locale.value) : '',
 )
 
 /** Estado del workflow con texto propio: nunca solo color. */
 const runLabel = computed(() => {
-  if (runError.value === 'rate-limit') return 'Límite de la API de GitHub alcanzado'
-  if (runError.value === 'unavailable') return 'No se ha podido consultar GitHub'
-  if (!run.value) return 'Nunca se ha ejecutado'
+  if (runError.value === 'rate-limit') return t('status.runRateLimit')
+  if (runError.value === 'unavailable') return t('status.runUnavailable')
+  if (!run.value) return t('status.runNever')
 
   const { status, conclusion, createdAt } = run.value
-  const when = new Date(createdAt).toLocaleString('es-ES')
-  if (status !== 'completed') return `En marcha desde ${when}`
-  return conclusion === 'success' ? `Correcta · ${when}` : `${conclusion ?? 'fallida'} · ${when}`
+  const when = new Date(createdAt).toLocaleString(locale.value)
+  if (status !== 'completed') return t('status.runOngoing', { when })
+  return conclusion === 'success'
+    ? t('status.runOk', { when })
+    : t('status.runFailed', { conclusion: conclusion ?? t('status.runFailedFallback'), when })
 })
 
 const runIsOk = computed(() => run.value?.status === 'completed' && run.value.conclusion === 'success')
@@ -138,32 +143,31 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
       <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-6 py-5">
         <div class="float-pill flex items-baseline gap-3 px-4 py-2">
           <BrandMark class="text-lg" />
-          <span class="text-xs tracking-[0.18em] text-faint uppercase">Estado de la app</span>
+          <span class="text-xs tracking-[0.18em] text-faint uppercase">{{ t('status.kicker') }}</span>
         </div>
 
         <RouterLink
           to="/"
           class="float-pill ml-auto px-4 py-2 text-xs font-medium text-muted transition hover:text-body"
         >
-          Volver
+          {{ t('nav.back') }}
         </RouterLink>
       </div>
     </header>
 
-    <main class="mx-auto max-w-6xl px-6 py-10">
-      <h1 class="font-display text-3xl tracking-tight">Índice de títulos</h1>
+    <main class="mx-auto max-w-6xl px-6 pt-10 pb-28">
+      <h1 class="font-display text-3xl tracking-tight">{{ t('status.title') }}</h1>
       <p class="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-        El archivo estático que permite buscar por subcadena. Se genera desde AniList y se sirve con
-        la aplicación.
+        {{ t('status.intro') }}
       </p>
 
-      <p v-if="isLoading" class="mt-8 text-sm text-muted">Cargando el índice…</p>
+      <p v-if="isLoading" class="mt-8 text-sm text-muted">{{ t('status.loading') }}</p>
 
       <p
         v-else-if="loadError"
         class="mt-8 rounded-xl border border-line bg-surface/60 px-4 py-3 text-sm text-muted"
       >
-        No se ha podido cargar <code>anime-index.json</code>. Genéralo con
+        {{ t('status.missingBefore') }} <code>anime-index.json</code>{{ t('status.missingAfter') }}
         <code class="text-body">npm run build:index</code>.
       </p>
 
@@ -171,23 +175,31 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
         <!-- Cifras del archivo -->
         <div class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div class="rounded-2xl border border-line bg-surface/60 p-4">
-            <p class="text-[11px] tracking-[0.16em] text-faint uppercase">Títulos</p>
+            <p class="text-[11px] tracking-[0.16em] text-faint uppercase">
+              {{ t('status.statTitles') }}
+            </p>
             <p class="mt-1 font-display text-2xl tabular-nums">
-              {{ media.length.toLocaleString('es-ES') }}
+              {{ media.length.toLocaleString(locale) }}
             </p>
           </div>
           <div class="rounded-2xl border border-line bg-surface/60 p-4">
-            <p class="text-[11px] tracking-[0.16em] text-faint uppercase">Generado</p>
+            <p class="text-[11px] tracking-[0.16em] text-faint uppercase">
+              {{ t('status.statGenerated') }}
+            </p>
             <p class="mt-1 font-display text-2xl" :title="generatedExact">{{ generatedLabel }}</p>
           </div>
           <div class="rounded-2xl border border-line bg-surface/60 p-4">
-            <p class="text-[11px] tracking-[0.16em] text-faint uppercase">Peso</p>
+            <p class="text-[11px] tracking-[0.16em] text-faint uppercase">
+              {{ t('status.statSize') }}
+            </p>
             <p class="mt-1 font-display text-2xl tabular-nums">
               {{ meta ? formatBytes(meta.bytes) : '—' }}
             </p>
           </div>
           <div class="rounded-2xl border border-line bg-surface/60 p-4">
-            <p class="text-[11px] tracking-[0.16em] text-faint uppercase">Géneros</p>
+            <p class="text-[11px] tracking-[0.16em] text-faint uppercase">
+              {{ t('status.statGenres') }}
+            </p>
             <p class="mt-1 font-display text-2xl tabular-nums">
               {{ meta?.genreTable.length ?? 0 }}
             </p>
@@ -196,7 +208,7 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
 
         <!-- Huecos en los datos -->
         <section class="mt-10">
-          <h2 class="font-display text-xl tracking-tight">Datos incompletos</h2>
+          <h2 class="font-display text-xl tracking-tight">{{ t('status.gaps') }}</h2>
           <div class="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line">
             <button
               v-for="check in CHECKS"
@@ -210,11 +222,11 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
                 {{ counts[check.id] }}
               </span>
               <span class="min-w-0 flex-1">
-                <span class="block text-sm text-body">{{ check.label }}</span>
-                <span class="block text-xs text-faint">{{ check.hint }}</span>
+                <span class="block text-sm text-body">{{ t(check.labelKey) }}</span>
+                <span class="block text-xs text-faint">{{ t(check.hintKey) }}</span>
               </span>
               <span class="shrink-0 text-xs text-accent">
-                {{ filter === check.id ? 'Quitar filtro' : 'Ver' }}
+                {{ filter === check.id ? t('status.clearFilter') : t('status.view') }}
               </span>
             </button>
           </div>
@@ -222,16 +234,14 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
 
         <!-- Regeneracion -->
         <section class="mt-10">
-          <h2 class="font-display text-xl tracking-tight">Actualizar el índice</h2>
+          <h2 class="font-display text-xl tracking-tight">{{ t('status.refresh') }}</h2>
           <div class="mt-4 rounded-2xl border border-line bg-surface/60 p-5">
             <p class="text-sm leading-relaxed text-muted">
-              El generador es un script de Node y esta página es estática, así que el navegador no
-              puede ejecutarlo. Se lanza desde GitHub Actions —tarda unos tres minutos y son cien
-              peticiones a AniList— o en local.
+              {{ t('status.refreshBody') }}
             </p>
 
             <dl class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-              <dt class="text-faint">Última ejecución:</dt>
+              <dt class="text-faint">{{ t('status.lastRun') }}</dt>
               <dd class="flex items-center gap-2">
                 <span
                   class="size-1.5 shrink-0 rounded-full"
@@ -258,7 +268,7 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
                 rel="noopener noreferrer"
                 class="rounded-full border border-line px-4 py-2 text-xs font-medium text-body transition hover:border-accent/60 hover:bg-accent/10"
               >
-                Lanzar en GitHub Actions ↗
+                {{ t('status.launch') }}
               </a>
               <code class="rounded-lg bg-surface-2/70 px-3 py-2 text-xs text-muted">
                 npm run build:index
@@ -271,9 +281,9 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
         <section class="mt-10">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h2 class="font-display text-xl tracking-tight">
-              Títulos registrados
+              {{ t('status.tableTitle') }}
               <span class="text-sm font-normal text-faint tabular-nums">
-                ({{ filtered.length.toLocaleString('es-ES') }})
+                ({{ filtered.length.toLocaleString(locale) }})
               </span>
             </h2>
 
@@ -284,12 +294,12 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
                 class="cursor-pointer rounded-full border border-accent/50 px-3 py-1.5 text-xs text-accent transition hover:bg-accent/10"
                 @click="apply('all')"
               >
-                Quitar filtro
+                {{ t('status.clearFilter') }}
               </button>
               <input
                 v-model="search"
                 type="search"
-                placeholder="Filtrar por título o id…"
+                :placeholder="t('status.filterPlaceholder')"
                 class="w-56 rounded-full border border-line bg-surface/70 px-4 py-2 text-sm text-body transition placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:outline-none"
                 @input="page = 1"
               />
@@ -301,11 +311,15 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
               <thead>
                 <tr class="border-b border-line bg-surface-2/40 text-left">
                   <th class="w-14 px-3 py-2 font-medium text-faint"></th>
-                  <th class="px-3 py-2 font-medium text-faint">Título</th>
+                  <th class="px-3 py-2 font-medium text-faint">{{ t('status.colTitle') }}</th>
                   <th class="w-20 px-3 py-2 text-right font-medium text-faint">id</th>
-                  <th class="w-20 px-3 py-2 text-right font-medium text-faint">Nota</th>
-                  <th class="w-20 px-3 py-2 text-right font-medium text-faint">Caps.</th>
-                  <th class="w-64 px-3 py-2 font-medium text-faint">Géneros</th>
+                  <th class="w-20 px-3 py-2 text-right font-medium text-faint">
+                    {{ t('status.colScore') }}
+                  </th>
+                  <th class="w-20 px-3 py-2 text-right font-medium text-faint">
+                    {{ t('status.colEpisodes') }}
+                  </th>
+                  <th class="w-64 px-3 py-2 font-medium text-faint">{{ t('status.statGenres') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -356,7 +370,7 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
 
                 <tr v-if="!paged.length">
                   <td colspan="6" class="px-4 py-6 text-center text-sm text-muted">
-                    Nada que mostrar con este filtro.
+                    {{ t('status.noRows') }}
                   </td>
                 </tr>
               </tbody>
@@ -370,7 +384,7 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
               :disabled="page <= 1"
               @click="page = Math.max(1, page - 1)"
             >
-              Anterior
+              {{ t('status.prev') }}
             </button>
             <span class="text-xs text-faint tabular-nums">{{ page }} / {{ pageCount }}</span>
             <button
@@ -379,7 +393,7 @@ const runIsOk = computed(() => run.value?.status === 'completed' && run.value.co
               :disabled="page >= pageCount"
               @click="page = Math.min(pageCount, page + 1)"
             >
-              Siguiente
+              {{ t('status.next') }}
             </button>
           </div>
         </section>

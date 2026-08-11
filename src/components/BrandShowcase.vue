@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { useI18n } from '@/lib/i18n'
 import AnimeCard from './AnimeCard.vue'
 import TitleFormats from './TitleFormats.vue'
 import frierenCover from '@/assets/frieren-cover.jpg'
 import type { MediaSummary } from '@/types/anilist'
+
+const { t } = useI18n()
 
 /**
  * Panel derecho del login. Adelanta la forma real de una card dentro de una
@@ -63,7 +66,7 @@ const rating = 4.55
       class="pointer-events-none absolute top-1/2 right-6 -translate-y-1/2 text-[10px] tracking-[0.42em] text-faint/60 uppercase [writing-mode:vertical-rl]"
       aria-hidden="true"
     >
-      Catálogo · AniList
+      {{ t('login.edge') }}
     </span>
 
     <div class="relative flex h-full flex-col justify-center gap-10 px-14 py-16 xl:px-20">
@@ -102,11 +105,10 @@ const rating = 4.55
 
       <div class="mx-auto max-w-sm text-center">
         <p class="font-display text-2xl leading-snug text-balance text-body">
-          Un catálogo. Tres formas de buscar el mismo título.
+          {{ t('login.showcaseTitle') }}
         </p>
         <p class="mt-4 text-sm leading-relaxed text-muted">
-          Tus pendientes, la lista comunitaria y las listas que abres con quien quieras. Los datos
-          vienen de AniList; aquí solo se consultan.
+          {{ t('login.showcaseBody') }}
         </p>
       </div>
     </div>

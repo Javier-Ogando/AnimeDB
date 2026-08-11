@@ -3,23 +3,26 @@ import type { MediaSummary } from '@/types/anilist'
 /**
  * Linea de episodios de una card.
  *
- *   una temporada           -> "12 caps."
- *   varias                  -> "T3 · 50 caps."          (total sumado)
- *   varias, alguna sin datos -> "T3 · caps. sin confirmar"
- *   sin dato                -> "Episodios sin confirmar"
+ *   una temporada            -> "12 caps."
+ *   varias                   -> "T3 · 50 caps."   (total sumado)
+ *   varias, alguna sin datos -> "T3 · N/A"
+ *   sin dato                 -> "N/A"
+ *
+ * "N/A" y no "sin confirmar": en una card de 264 px, una frase larga desplaza la
+ * valoracion y rompe la linea de metadatos.
  */
 export function formatEpisodes(media: MediaSummary): string {
   if (media.seasons && media.seasons > 1) {
     return media.totalEpisodes
       ? `T${media.seasons} · ${media.totalEpisodes} caps.`
-      : `T${media.seasons} · caps. sin confirmar`
+      : `T${media.seasons} · N/A`
   }
 
   if (media.episodes) {
     return `${media.episodes} caps.`
   }
 
-  return 'Episodios sin confirmar'
+  return 'N/A'
 }
 
 /**

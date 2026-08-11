@@ -48,6 +48,13 @@ async function syncUserDoc(u: User): Promise<void> {
 onAuthStateChanged(auth, (u) => {
   user.value = u
 
+  // Las preferencias se cargan y se sueltan con la sesion. La importacion es
+  // diferida para no crear un ciclo: usePreferences necesita useAuth.
+  void import('@/composables/usePreferences').then((module) => {
+    if (u) module.watchPreferences(u.uid)
+    else module.stopWatchingPreferences()
+  })
+
   // El login no depende de Firestore: si las reglas no estan desplegadas
   // todavia, avisamos pero dejamos entrar.
   if (u) {
