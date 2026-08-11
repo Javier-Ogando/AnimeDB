@@ -18,7 +18,7 @@ import {
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { fetchDescription } from '@/lib/anilist'
+import { fetchDescription, resolveFranchiseChain } from '@/lib/anilist'
 import { db } from '@/lib/firebase'
 import type {
   ItemStatus,
@@ -28,7 +28,7 @@ import type {
   ListType,
   MediaSnapshot,
 } from '@/types/models'
-import type { MediaSummary } from '@/types/anilist'
+import type { FranchiseChain, MediaSummary } from '@/types/anilist'
 
 /**
  * Acceso a las listas. Recordatorio de como se modela, porque no es SQL: la
@@ -69,7 +69,11 @@ export async function ensurePersonalList(uid: string): Promise<string> {
 }
 
 /** Convierte un resultado de busqueda en el snapshot que se guarda en el item. */
-function toSnapshot(media: MediaSummary, description: string | null): MediaSnapshot {
+function toSnapshot(
+  media: MediaSummary,
+  description: string | null,
+  chain: FranchiseChain,
+): MediaSnapshot {
   return {
     titlePreferred: media.titlePreferred,
     titleRomaji: media.titleRomaji,
@@ -80,6 +84,8 @@ function toSnapshot(media: MediaSummary, description: string | null): MediaSnaps
     genres: media.genres ?? [],
     averageScore: media.averageScore ?? null,
     description,
+    seasons: chain.seasons,
+    totalEpisodes: chain.totalEpisodes,
   }
 }
 
@@ -96,8 +102,8 @@ export function itemToMedia(item: ListItem): MediaSummary {
     format: null,
     seasonYear: null,
     episodes: s.episodes ?? null,
-    seasons: null,
-    totalEpisodes: null,
+    seasons: s.seasons ?? null,
+    totalEpisodes: s.totalEpisodes ?? null,
     genres: s.genres ?? [],
     averageScore: s.averageScore ?? null,
     description: s.description ?? null,
@@ -161,7 +167,15 @@ export function canEdit(role: ListRole | null): boolean {
   return role === 'owner' || role === 'manager'
 }
 
-/** Perfiles de varios uids, para pintar avatares. */
+/**
+ * Perfiles de varios uids, para pintar nombres y avatares.
+ *
+ * Devuelve el nombre y la foto EFECTIVOS, no los del proveedor: si el usuario se
+ * ha puesto apodo o foto propia en /preferencias, mandan esos. Se resuelve aqui
+ * y no en cada componente porque de esta funcion cuelgan las resenas, el hilo de
+ * respuestas, los miembros de una lista y los avatares de /general: con la
+ * preferencia aplicada en un solo sitio, no hay pantalla que se olvide.
+ */
 export async function fetchUserProfiles(
   uids: string[],
 ): Promise<Map<string, { displayName: string | null; photoURL: string | null }>> {
@@ -171,8 +185,21 @@ export async function fetchUserProfiles(
       try {
         const snap = await getDoc(doc(db, 'users', uid))
         if (!snap.exists()) return null
-        const data = snap.data() as { displayName?: string | null; photoURL?: string | null }
-        return [uid, { displayName: data.displayName ?? null, photoURL: data.photoURL ?? null }] as const
+
+        const data = snap.data() as {
+          displayName?: string | null
+          photoURL?: string | null
+          nickname?: string | null
+          photoOverride?: string | null
+        }
+
+        return [
+          uid,
+          {
+            displayName: data.nickname?.trim() || data.displayName || null,
+            photoURL: data.photoOverride?.trim() || data.photoURL || null,
+          },
+        ] as const
       } catch {
         return null
       }
@@ -192,26 +219,77 @@ export async function addAnimeToList(
   uid: string,
 ): Promise<void> {
   const mediaId = String(media.id)
+  const mediaRef = doc(db, 'media', mediaId)
+
+  /*
+   * media/{anilistId} es una cache compartida: si otro usuario ya dio de alta
+   * este titulo, la sinopsis y las temporadas estan ahi y no hay que volver a
+   * pedirlas a AniList. Una lectura de Firestore es mas barata y mas rapida que
+   * las hasta doce peticiones que cuesta recorrer una franquicia larga.
+   *
+   * En try/catch porque esto es solo un atajo: si la lectura falla, el alta debe
+   * seguir adelante pidiendo los datos a AniList.
+   */
+  let cached:
+    | { description?: string | null; seasons?: number | null; totalEpisodes?: number | null }
+    | undefined
+  try {
+    cached = (await getDoc(mediaRef)).data() as typeof cached
+  } catch {
+    cached = undefined
+  }
 
   // La sinopsis no viaja en los resultados de busqueda (ni en el indice local,
   // donde 5000 descripciones serian varios MB), asi que se pide aqui: es una
   // sola peticion y solo al dar de alta. Si falla, se guarda sin sinopsis.
-  const description = media.description ?? (await fetchDescription(media.id))
+  const description = media.description ?? cached?.description ?? (await fetchDescription(media.id))
+
+  /*
+   * Las temporadas se resuelven aqui por lo mismo, pero mas fuerte: AniList
+   * modela cada temporada como una entrada aparte y hay que recorrer la cadena
+   * SEQUEL/PREQUEL entera, una peticion por temporada. Contarlo desde el
+   * buscador daba numeros distintos para la misma serie segun que entrada
+   * coincidiese con lo teclado (ver la nota de SEARCH_QUERY en anilist.ts); en
+   * el alta se calcula bien una vez y se guarda.
+   *
+   * `seasons` es lo que decide si hay cache: totalEpisodes puede ser null de
+   * forma legitima cuando alguna temporada aun no se ha emitido.
+   */
+  const chain =
+    typeof cached?.seasons === 'number'
+      ? { seasons: cached.seasons, totalEpisodes: cached.totalEpisodes ?? null }
+      : await resolveFranchiseChain(media.id)
+
+  /*
+   * Si el anime YA estaba en la lista, el set() de abajo lo sobreescribe (el ID
+   * del documento es el id de AniList), asi que no hay duplicado... pero el
+   * increment(1) del contador si se aplicaria, y itemCount acabaria diciendo
+   * "7 titulos" en una lista de 4. De ahi esta lectura.
+   */
+  const itemRef = doc(db, 'lists', listId, 'items', mediaId)
+  let alreadyThere = false
+  try {
+    alreadyThere = (await getDoc(itemRef)).exists()
+  } catch {
+    // Si no se puede comprobar, se asume que es nuevo: preferimos un contador
+    // alto a bloquear el alta.
+    alreadyThere = false
+  }
 
   const batch = writeBatch(db)
 
   // 1. La relacion. El ID del documento es el id de AniList.
-  batch.set(doc(db, 'lists', listId, 'items', mediaId), {
+  batch.set(itemRef, {
     mediaId: media.id,
     addedBy: uid,
     addedAt: serverTimestamp(),
     status: 'pending',
-    snapshot: toSnapshot(media, description),
+    snapshot: toSnapshot(media, description, chain),
   })
 
   // 2. La cache compartida: es la que alimenta el catalogo de /general.
   batch.set(
-    doc(db, 'media', mediaId),
+    mediaRef,
     {
       anilistId: media.id,
       titles: {
@@ -225,6 +303,8 @@ export async function addAnimeToList(
       genres: media.genres ?? [],
       averageScore: media.averageScore ?? null,
       description,
+      seasons: chain.seasons,
+      totalEpisodes: chain.totalEpisodes,
       updatedAt: serverTimestamp(),
     },
     { merge: true },
@@ -233,7 +313,7 @@ export async function addAnimeToList(
   // 3. El contador. increment() suma en el servidor: dos altas simultaneas no
   //    se pisan, cosa que `actual + 1` desde el cliente si haria.
   batch.update(doc(db, 'lists', listId), {
-    itemCount: increment(1),
+    itemCount: increment(alreadyThere ? 0 : 1),
     updatedAt: serverTimestamp(),
   })
 
@@ -327,6 +407,10 @@ export async function fetchRegisteredMedia(max = 200): Promise<MediaSummary[]> {
       episodes?: number | null
       genres?: string[]
       averageScore?: number | null
+      watchedBy?: string[]
+      seasons?: number | null
+      totalEpisodes?: number | null
+      description?: string | null
     }
 
     return {
@@ -339,12 +423,54 @@ export async function fetchRegisteredMedia(max = 200): Promise<MediaSummary[]> {
       format: null,
       seasonYear: null,
       episodes: data.episodes ?? null,
-      seasons: null,
-      totalEpisodes: null,
+      // Resueltas en el alta y guardadas aqui: el catalogo las pinta sin tocar
+      // AniList. Las altas anteriores a esto no las tienen y quedan en null.
+      seasons: data.seasons ?? null,
+      totalEpisodes: data.totalEpisodes ?? null,
       genres: data.genres ?? [],
       averageScore: data.averageScore ?? null,
+      watchedBy: data.watchedBy ?? [],
+      // addAnimeToList la guarda aqui desde el primer alta; faltaba mapearla y
+      // por eso las cards de /general salian solo con el titulo.
+      description: data.description ?? null,
     } satisfies MediaSummary
   })
+}
+
+export interface MyLibrary {
+  /** Las listas del usuario, la personal incluida. */
+  lists: ListWithId[]
+  /** Ids de AniList que ya tiene guardados en alguna de ellas. */
+  mediaIds: Set<number>
+}
+
+/**
+ * Lo que el usuario ya tiene, de una sola pasada: /general lo necesita para no
+ * ofrecer un alta que ya existe.
+ *
+ * Con getDocs y no con onSnapshot a proposito. Suscribirse a las listas y a los
+ * items de cada una costaria las MISMAS lecturas iniciales y ademas dejaria N+1
+ * escuchas abiertas para enterarse de cambios que esta pantalla ya conoce: las
+ * altas las hace ella misma, asi que le basta con recordar el id en cliente.
+ */
+export async function fetchMyLibrary(uid: string): Promise<MyLibrary> {
+  const listsSnap = await getDocs(
+    query(collection(db, 'lists'), where('memberUids', 'array-contains', uid)),
+  )
+  const lists = listsSnap.docs.map((d) => ({ ...(d.data() as ListDoc), id: d.id }))
+
+  // Las listas vacias se saltan: su subcoleccion no tiene nada que leer y
+  // preguntarlo cuesta una consulta igualmente.
+  const withItems = lists.filter((list) => (list.itemCount ?? 0) > 0)
+  const itemSnaps = await Promise.all(
+    withItems.map((list) => getDocs(collection(db, 'lists', list.id, 'items'))),
+  )
+
+  const mediaIds = new Set<number>()
+  // El ID del documento ES el id de AniList, asi que no hay que mirar dentro.
+  itemSnaps.forEach((snap) => snap.docs.forEach((d) => mediaIds.add(Number(d.id))))
+
+  return { lists, mediaIds }
 }
 
 // ---------- listas compartidas e invitaciones ----------
@@ -467,7 +593,23 @@ export async function findInviteForList(listId: string): Promise<string | null> 
 export async function createInvite(listId: string, uid: string): Promise<string> {
   const token = newToken()
 
+  /*
+   * Se revocan las invitaciones vivas de esta lista antes de crear la nueva.
+   * Sin esto el boton mentia: decia "invalida el anterior" y el enlace viejo
+   * seguia admitiendo gente. Y ademas findInviteForList devuelve la primera no
+   * revocada en orden arbitrario, asi que al reabrir la pantalla podia
+   * aparecer el enlace antiguo en lugar del recien creado.
+   */
+  const previous = await getDocs(
+    query(collection(db, 'invites'), where('listId', '==', listId), limit(20)),
+  )
+
   const batch = writeBatch(db)
+
+  previous.docs
+    .filter((d) => !(d.data() as { revoked?: boolean }).revoked)
+    .forEach((d) => batch.update(d.ref, { revoked: true }))
+
   batch.set(doc(db, 'invites', token), {
     listId,
     createdBy: uid,
@@ -484,12 +626,19 @@ export async function createInvite(listId: string, uid: string): Promise<string>
 }
 
 export async function deleteList(listId: string): Promise<void> {
-  // Firestore no borra en cascada: los items quedarian huerfanos. Se borran
-  // antes, en lotes, porque no hay operacion recursiva desde el cliente.
+  /*
+   * Firestore no borra en cascada: los items quedarian huerfanos. Y un
+   * writeBatch corta en 500 escrituras, asi que una lista con mas titulos
+   * fallaria al borrarse y sobreviviria. De ahi los lotes.
+   */
   const items = await getDocs(collection(db, 'lists', listId, 'items'))
-  const batch = writeBatch(db)
-  items.docs.forEach((d) => batch.delete(d.ref))
-  await batch.commit()
+  const CHUNK = 450
+
+  for (let from = 0; from < items.docs.length; from += CHUNK) {
+    const batch = writeBatch(db)
+    items.docs.slice(from, from + CHUNK).forEach((d) => batch.delete(d.ref))
+    await batch.commit()
+  }
 
   await deleteDoc(doc(db, 'lists', listId))
 }

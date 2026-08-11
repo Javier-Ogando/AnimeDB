@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useI18n } from '@/lib/i18n'
 import { joinList, resolveInvite, type InviteInfo } from '@/lib/lists'
 import AppHeader from '@/components/AppHeader.vue'
 
@@ -12,6 +13,7 @@ import AppHeader from '@/components/AppHeader.vue'
 const route = useRoute()
 const router = useRouter()
 const { user } = useAuth()
+const { t } = useI18n()
 
 const token = String(route.params.token)
 
@@ -21,9 +23,7 @@ const isJoining = ref(false)
 const error = ref<string | null>(null)
 
 function describe(e: Error): string {
-  return e.message.includes('permission')
-    ? 'Firestore ha denegado el acceso. Despliega las reglas: npx firebase deploy --only firestore:rules'
-    : 'No se ha podido usar la invitación.'
+  return e.message.includes('permission') ? t('error.permissionRead') : t('invite.error')
 }
 
 async function load() {
@@ -62,40 +62,40 @@ async function onJoin() {
     <AppHeader />
 
     <main class="mx-auto flex max-w-xl flex-col px-6 py-16">
-      <p v-if="isLoading" class="text-sm text-muted">Comprobando la invitación…</p>
+      <p v-if="isLoading" class="text-sm text-muted">{{ t('invite.checking') }}</p>
 
       <template v-else-if="!invite">
-        <h1 class="font-display text-2xl tracking-tight">Invitación no válida</h1>
+        <h1 class="font-display text-2xl tracking-tight">{{ t('invite.invalidTitle') }}</h1>
         <p class="mt-3 text-sm leading-relaxed text-muted">
-          Este enlace no existe. Puede que se haya generado uno nuevo, que invalida el anterior.
+          {{ t('invite.invalidBody') }}
         </p>
       </template>
 
       <template v-else-if="invite.revoked">
-        <h1 class="font-display text-2xl tracking-tight">Invitación caducada</h1>
+        <h1 class="font-display text-2xl tracking-tight">{{ t('invite.expiredTitle') }}</h1>
         <p class="mt-3 text-sm leading-relaxed text-muted">
-          Quien te invitó ha desactivado este enlace. Pídele uno nuevo.
+          {{ t('invite.expiredBody') }}
         </p>
       </template>
 
       <template v-else-if="invite.alreadyMember">
-        <h1 class="font-display text-2xl tracking-tight">Ya estás en esta lista</h1>
-        <p class="mt-3 text-sm text-muted">{{ invite.listName ?? 'Lista compartida' }}</p>
+        <h1 class="font-display text-2xl tracking-tight">{{ t('invite.memberTitle') }}</h1>
+        <p class="mt-3 text-sm text-muted">{{ invite.listName ?? t('shared.listFallback') }}</p>
         <RouterLink
           :to="{ name: 'shared-list', params: { listId: invite.listId } }"
           class="mt-6 self-start rounded-full border border-accent/50 px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent/10"
         >
-          Abrir la lista
+          {{ t('invite.open') }}
         </RouterLink>
       </template>
 
       <template v-else>
         <h1 class="font-display text-2xl tracking-tight">
-          Te han invitado a
-          <span class="text-accent">{{ invite.listName ?? 'una lista compartida' }}</span>
+          {{ t('invite.title') }}
+          <span class="text-accent">{{ invite.listName ?? t('invite.listFallback') }}</span>
         </h1>
         <p class="mt-3 text-sm leading-relaxed text-muted">
-          Al unirte podrás ver y añadir animes a esta lista, igual que el resto de miembros.
+          {{ t('invite.body') }}
         </p>
 
         <button
@@ -104,7 +104,7 @@ async function onJoin() {
           class="mt-6 self-start cursor-pointer rounded-full border border-accent/50 px-5 py-2.5 text-sm font-medium text-accent transition hover:bg-accent/10 disabled:cursor-not-allowed disabled:opacity-60"
           @click="onJoin"
         >
-          {{ isJoining ? 'Uniéndote…' : 'Unirme a la lista' }}
+          {{ isJoining ? t('invite.joining') : t('invite.join') }}
         </button>
       </template>
 

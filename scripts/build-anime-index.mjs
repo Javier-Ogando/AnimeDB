@@ -38,10 +38,11 @@ const QUERY = `
   query Index($page: Int!, $perPage: Int!) {
     Page(page: $page, perPage: $perPage) {
       pageInfo { hasNextPage }
-      media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
+      media(type: ANIME, sort: POPULARITY_DESC, genre_not_in: ["Hentai"]) {
         id
         episodes
         averageScore
+        isAdult
         genres
         title { romaji english userPreferred }
         coverImage { large color }
@@ -103,7 +104,8 @@ function toGenreIds(list) {
  * Cada entrada es un array y no un objeto: con 5000 titulos, repetir los nombres
  * de campo costaria mas de 200 KB de nada.
  *
- *   [id, preferred, romaji, english, episodios, portada, color, nota, generos]
+ *   [id, preferred, romaji, english, episodios, portada, color, nota, generos,
+ *    adulto]
  *
  * romaji y english se guardan como null cuando coinciden con preferred, que es
  * el caso de la mayoria, para no duplicar la misma cadena. `nota` es el
@@ -129,6 +131,8 @@ function toRow(media) {
     media.coverImage?.color ?? null,
     media.averageScore ?? null,
     toGenreIds(media.genres),
+    // 1/0 y no true/false: en 5000 entradas, "true" cuesta tres bytes mas.
+    media.isAdult ? 1 : 0,
   ]
 }
 
@@ -155,7 +159,7 @@ for (let page = 1; page <= MAX_PAGES; page++) {
 
 const output = {
   generatedAt: new Date().toISOString(),
-  source: 'AniList (type: ANIME, sort: POPULARITY_DESC, isAdult: false)',
+  source: 'AniList (type: ANIME, sort: POPULARITY_DESC, genre_not_in: ["Hentai"])',
   coverBase: COVER_BASE,
   fields: [
     'id',
@@ -167,6 +171,7 @@ const output = {
     'color',
     'score',
     'genres',
+    'adult',
   ],
   // Los generos de cada entrada son indices dentro de esta tabla.
   genreTable,

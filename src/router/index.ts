@@ -15,6 +15,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/HomeView.vue'),
   },
   {
+    path: '/preferencias',
+    name: 'preferences',
+    component: () => import('@/views/PreferencesView.vue'),
+  },
+  {
     path: '/estado',
     name: 'estado',
     component: () => import('@/views/StatusView.vue'),
@@ -29,6 +34,11 @@ const routes: RouteRecordRaw[] = [
     path: '/general',
     name: 'general',
     component: () => import('@/views/GeneralView.vue'),
+  },
+  {
+    path: '/anime/:id',
+    name: 'anime',
+    component: () => import('@/views/AnimeDetailView.vue'),
   },
   {
     path: '/compartidas',

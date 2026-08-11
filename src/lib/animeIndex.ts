@@ -12,7 +12,8 @@ import type { MediaSummary } from '@/types/anilist'
  */
 
 /**
- * [id, preferred, romaji, english, episodios, portada, color, nota, generos]
+ * [id, preferred, romaji, english, episodios, portada, color, nota, generos,
+ *  adulto]
  *
  * Los dos ultimos son opcionales para poder leer indices generados antes de que
  * existieran, en cuyo caso la card se pinta sin estrellas ni chips.
@@ -27,6 +28,7 @@ type IndexRow = [
   string | null,
   (number | null)?,
   number[]?,
+  (0 | 1)?,
 ]
 
 interface IndexFile {
@@ -40,6 +42,8 @@ interface IndexFile {
 
 interface Entry {
   media: MediaSummary
+  /** AniList lo marca como adulto: se oculta salvo que el usuario lo permita. */
+  isAdult: boolean
   /** Titulos ya normalizados: no se re-normalizan en cada pulsacion. */
   haystacks: string[]
 }
@@ -79,7 +83,7 @@ export function normalizeTerm(value: string): string {
 }
 
 function toEntry(row: IndexRow, coverBase: string, genreTable: string[]): Entry {
-  const [id, preferred, romaji, english, episodes, cover, color, score, genreIds] = row
+  const [id, preferred, romaji, english, episodes, cover, color, score, genreIds, adult] = row
 
   const media: MediaSummary = {
     id,
@@ -106,7 +110,7 @@ function toEntry(row: IndexRow, coverBase: string, genreTable: string[]): Entry 
     .filter((value): value is string => Boolean(value))
     .map(normalizeTerm)
 
-  return { media, haystacks }
+  return { media, haystacks, isAdult: adult === 1 }
 }
 
 async function load(): Promise<Entry[]> {
@@ -174,6 +178,7 @@ function score(haystack: string, needle: string): number {
 export async function searchAnimeIndex(
   term: string,
   limit = LOCAL_LIMIT,
+  allowAdult = false,
 ): Promise<MediaSummary[]> {
   const needle = normalizeTerm(term)
   if (!needle) return []
@@ -185,6 +190,9 @@ export async function searchAnimeIndex(
 
   for (let rank = 0; rank < index.length; rank++) {
     const entry = index[rank]!
+    // El indice incluye titulos para adultos; ocultarlos es cosa del cliente,
+    // porque el archivo es el mismo para todos.
+    if (entry.isAdult && !allowAdult) continue
     let best = Number.POSITIVE_INFINITY
 
     for (const haystack of entry.haystacks) {

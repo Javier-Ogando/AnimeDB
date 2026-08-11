@@ -1,6 +1,7 @@
 import { onScopeDispose, ref, watch } from 'vue'
 import { AniListRateLimitError, searchAnime } from '@/lib/anilist'
 import { LOCAL_LIMIT, searchAnimeIndex } from '@/lib/animeIndex'
+import { usePreferences } from '@/composables/usePreferences'
 import type { MediaSummary } from '@/types/anilist'
 
 interface Options {
@@ -24,6 +25,8 @@ export function useAnimeSearch(options: Options = {}) {
   const minLength = options.minLength ?? 2
   const delay = options.delay ?? 300
 
+  const { nsfw } = usePreferences()
+
   const term = ref('')
   const results = ref<MediaSummary[]>([])
   const isLoading = ref(false)
@@ -44,7 +47,7 @@ export function useAnimeSearch(options: Options = {}) {
 
   /** Indice local: subcadenas de verdad, sin red mas alla de la primera carga. */
   async function runLocal(value: string) {
-    const local = await searchAnimeIndex(value, LOCAL_LIMIT)
+    const local = await searchAnimeIndex(value, LOCAL_LIMIT, nsfw.value)
     if (currentTerm() !== value) return local
 
     results.value = local
@@ -60,6 +63,7 @@ export function useAnimeSearch(options: Options = {}) {
       const remote = await searchAnime(value, {
         perPage: options.perPage,
         signal: own.signal,
+        allowAdult: nsfw.value,
       })
       if (controller !== own || currentTerm() !== value) return
 

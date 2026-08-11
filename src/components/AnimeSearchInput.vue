@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAnimeSearch } from '@/composables/useAnimeSearch'
+import { useI18n } from '@/lib/i18n'
 import AnimeRow from './AnimeRow.vue'
 import type { MediaSummary } from '@/types/anilist'
 
@@ -25,6 +26,7 @@ const props = withDefaults(
 const emit = defineEmits<{ select: [media: MediaSummary, destinationId: string] }>()
 
 const { term, results, isLoading, error, minLength, reset } = useAnimeSearch()
+const { t } = useI18n()
 
 const root = ref<HTMLElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
@@ -38,7 +40,7 @@ const hasQuery = computed(() => term.value.trim().length >= minLength)
 const showPanel = computed(() => isOpen.value && hasQuery.value)
 
 const targets = computed<SearchDestination[]>(() =>
-  props.destinations.length ? props.destinations : [{ id: '', label: 'Añadir' }],
+  props.destinations.length ? props.destinations : [{ id: '', label: t('search.add') }],
 )
 
 watch(results, (list) => {
@@ -135,8 +137,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
         type="text"
         autocomplete="off"
         spellcheck="false"
-        aria-label="Buscar un anime en AniList por título en romaji, inglés o preferido"
-        placeholder="Busca por título: romaji, inglés o preferido…"
+        :aria-label="t('search.ariaLabel')"
+        :placeholder="t('search.placeholder')"
         class="w-full rounded-full border border-line bg-surface/70 py-3 pr-11 pl-11 text-sm text-body transition placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:outline-none"
         @focus="isOpen = true"
         @keydown="onKeydown"
@@ -152,7 +154,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
         v-else-if="term"
         type="button"
         class="absolute top-1/2 right-3 grid size-6 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-faint transition hover:bg-surface-2 hover:text-body"
-        aria-label="Limpiar búsqueda"
+        :aria-label="t('search.clear')"
         @click="reset(), input?.focus()"
       >
         <svg
@@ -175,17 +177,17 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
       class="absolute inset-x-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-surface/95 shadow-2xl shadow-shade backdrop-blur-md"
     >
       <p class="sr-only" aria-live="polite">
-        {{ results.length }} resultados para {{ term.trim() }}
+        {{ t('search.results', { count: results.length, term: term.trim() }) }}
       </p>
 
       <p v-if="error" class="px-4 py-3 text-xs text-red-400">{{ error }}</p>
 
       <p v-else-if="isLoading && !results.length" class="px-4 py-3 text-xs text-muted">
-        Buscando en AniList…
+        {{ t('search.searching') }}
       </p>
 
       <p v-else-if="!results.length" class="px-4 py-3 text-xs text-muted">
-        Sin coincidencias para «{{ term.trim() }}».
+        {{ t('search.noMatches', { term: term.trim() }) }}
       </p>
 
       <ul v-else class="max-h-96 overflow-y-auto p-1.5">
@@ -216,7 +218,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
             v-if="selectedId === media.id"
             class="rise flex flex-wrap items-center gap-2 px-2.5 pt-1 pb-3"
           >
-            <span class="text-[11px] tracking-wide text-faint">Guardar en</span>
+            <span class="text-[11px] tracking-wide text-faint">{{ t('search.saveTo') }}</span>
             <button
               v-for="destination in targets"
               :key="destination.id"

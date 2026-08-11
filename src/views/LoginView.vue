@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useI18n } from '@/lib/i18n'
 import BrandMark from '@/components/BrandMark.vue'
 import BrandShowcase from '@/components/BrandShowcase.vue'
 
 const { signInWithGoogle, signInWithGithub, isBusy, error } = useAuth()
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -41,11 +43,11 @@ async function onSignIn(provider: 'google' | 'github') {
       <div class="relative flex flex-1 items-center justify-center py-12">
         <div class="w-full max-w-sm">
           <h1 class="rise font-display text-4xl leading-[1.15] tracking-tight text-balance">
-            Entra en tu
-            <span class="text-accent">biblioteca</span>
+            {{ t('login.titleBefore') }}
+            <span class="text-accent">{{ t('login.titleAccent') }}</span>
           </h1>
           <p class="rise mt-4 text-sm leading-relaxed text-muted" style="animation-delay: 60ms">
-            Sin contraseñas. Entra con Google o GitHub y recuperamos tus listas.
+            {{ t('login.subtitle') }}
           </p>
 
           <button
@@ -74,7 +76,7 @@ async function onSignIn(provider: 'google' | 'github') {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.51 6.16-4.51Z"
               />
             </svg>
-            <span>{{ isBusy ? 'Conectando…' : 'Continuar con Google' }}</span>
+            <span>{{ isBusy ? t('login.connecting') : t('login.google') }}</span>
           </button>
 
           <button
@@ -90,7 +92,7 @@ async function onSignIn(provider: 'google' | 'github') {
                 d="M12 1.5a10.5 10.5 0 0 0-3.32 20.47c.52.1.71-.23.71-.5v-1.8c-2.9.63-3.52-1.4-3.52-1.4-.47-1.2-1.16-1.53-1.16-1.53-.95-.65.07-.64.07-.64 1.05.08 1.6 1.08 1.6 1.08.93 1.6 2.45 1.14 3.05.87.09-.68.36-1.14.66-1.4-2.32-.27-4.76-1.16-4.76-5.15 0-1.14.4-2.07 1.07-2.8-.11-.27-.47-1.33.1-2.78 0 0 .87-.28 2.85 1.07a9.9 9.9 0 0 1 5.19 0c1.98-1.35 2.85-1.07 2.85-1.07.57 1.45.21 2.51.1 2.78.67.73 1.07 1.66 1.07 2.8 0 4-2.45 4.88-4.78 5.14.38.33.71.97.71 1.95v2.89c0 .28.19.61.72.5A10.5 10.5 0 0 0 12 1.5Z"
               />
             </svg>
-            <span>{{ isBusy ? 'Conectando…' : 'Continuar con GitHub' }}</span>
+            <span>{{ isBusy ? t('login.connecting') : t('login.github') }}</span>
           </button>
 
           <p
@@ -105,8 +107,7 @@ async function onSignIn(provider: 'google' | 'github') {
             class="rise mt-6 text-center text-xs leading-relaxed text-faint"
             style="animation-delay: 180ms"
           >
-            Al continuar guardamos únicamente tu nombre, avatar y correo para identificarte dentro
-            de tus listas.
+            {{ t('login.privacy') }}
           </p>
         </div>
       </div>
@@ -114,8 +115,8 @@ async function onSignIn(provider: 'google' | 'github') {
       <!-- pb-14 en movil: deja hueco al boton de tema flotante, que en pantallas
            estrechas se solaparia con este texto. -->
       <footer class="relative pb-14 text-center text-xs leading-relaxed text-faint sm:pb-0">
-        AnimeDB es un catálogo de consulta: no aloja ni reproduce contenido.
-        <span class="block">Metadatos de AniList.</span>
+        {{ t('login.footer') }}
+        <span class="block">{{ t('login.footerMeta') }}</span>
       </footer>
     </section>
 

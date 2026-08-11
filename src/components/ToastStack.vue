@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useToast } from '@/composables/useToast'
+import { useI18n } from '@/lib/i18n'
 
 /**
  * Pila de avisos temporales, abajo a la derecha.
@@ -8,6 +9,7 @@ import { useToast } from '@/composables/useToast'
  * tema: de ahi el left-20 en movil, donde el aviso ocupa casi todo el ancho.
  */
 const { toasts, dismiss } = useToast()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -61,7 +63,7 @@ const { toasts, dismiss } = useToast()
         <button
           type="button"
           class="-mr-1 shrink-0 cursor-pointer rounded-full p-1 text-faint transition hover:text-body"
-          aria-label="Cerrar aviso"
+          :aria-label="t('common.dismiss')"
           @click="dismiss(toast.id)"
         >
           <svg

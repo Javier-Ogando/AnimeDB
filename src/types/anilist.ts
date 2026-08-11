@@ -18,6 +18,37 @@ export interface AniListMedia {
 }
 
 /**
+ * Un nodo de la cadena de temporadas, tal y como llega de AniList: la entrada y
+ * las aristas que salen de ella. `type` distingue ANIME de MANGA, porque las
+ * relaciones de un anime tambien apuntan al manga original.
+ */
+export interface AniListChainMedia {
+  id: number
+  episodes: number | null
+  format: string | null
+  relations: {
+    edges: Array<{
+      relationType: string | null
+      node: { id: number; type: string | null; format: string | null } | null
+    } | null> | null
+  } | null
+}
+
+/**
+ * Resultado de recorrer la cadena SEQUEL/PREQUEL de una franquicia.
+ *
+ * Los dos campos son independientes: se pueden conocer las temporadas y no el
+ * total de episodios, porque una temporada anunciada pero sin emitir llega con
+ * `episodes: null` y sumarla como cero daria un total falso.
+ */
+export interface FranchiseChain {
+  /** Temporadas encontradas, o null si no se ha podido recorrer la cadena. */
+  seasons: number | null
+  /** Suma de episodios, solo si TODAS las temporadas los tienen conocidos. */
+  totalEpisodes: number | null
+}
+
+/**
  * Forma normalizada que consume la UI. La usan tanto los resultados de AniList
  * como los items ya guardados en Firestore (que traen menos campos), para que
  * AnimeCard sirva en los dos sitios.
@@ -42,8 +73,14 @@ export interface MediaSummary {
   /** Estado dentro de la lista. Solo lo traen los items ya guardados. */
   status?: 'pending' | 'watching' | 'done'
   /**
-   * Temporadas detectadas en la franquicia, o null si no se han podido
-   * determinar. 1 no se usa: si solo hay una, queda en null.
+   * Uid de quienes lo han terminado. Vive en media/{id} y solo lo trae el
+   * catalogo general, que es donde se pintan los avatares.
+   */
+  watchedBy?: string[]
+  /**
+   * Temporadas de la franquicia, o null si no se han podido determinar. Un 1 es
+   * un dato valido (serie de una sola temporada) y se guarda como tal para no
+   * volver a recorrer la cadena; formatEpisodes lo ignora al pintar.
    */
   seasons: number | null
   /** Suma de episodios de las temporadas detectadas, o null. */

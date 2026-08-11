@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { usePreferences } from '@/composables/usePreferences'
 import { isAdmin } from '@/lib/admin'
+import { useI18n } from '@/lib/i18n'
 import BrandMark from './BrandMark.vue'
 
 /**
@@ -13,15 +15,17 @@ import BrandMark from './BrandMark.vue'
  * delataria que hay una barra debajo y romperia el efecto.
  */
 const { user, signOut, isBusy } = useAuth()
+const { displayName, photo } = usePreferences()
+const { t } = useI18n()
 const router = useRouter()
 
 const canSeeStatus = computed(() => isAdmin(user.value?.uid))
 
-const NAV = [
-  { to: '/personal', label: 'Pendientes' },
-  { to: '/general', label: 'General' },
-  { to: '/compartidas', label: 'Compartidas' },
-]
+const NAV = computed(() => [
+  { to: '/personal', label: t('nav.pending') },
+  { to: '/general', label: t('nav.general') },
+  { to: '/compartidas', label: t('nav.shared') },
+])
 
 async function onSignOut() {
   await signOut()
@@ -66,17 +70,21 @@ async function onSignOut() {
           class="rounded-full px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-surface-2/70 hover:text-body"
           active-class="bg-accent/12 text-body"
         >
-          Estado
+          {{ t('nav.status') }}
         </RouterLink>
 
-        <img
-          v-if="user?.photoURL"
-          :src="user.photoURL"
-          :alt="user.displayName ?? 'Avatar'"
-          :title="user.displayName ?? user.email ?? ''"
-          class="size-7 rounded-full ring-1 ring-line"
-          referrerpolicy="no-referrer"
-        />
+        <!-- El avatar lleva a preferencias: es el sitio donde todo el mundo
+             espera encontrar los ajustes de su cuenta. -->
+        <RouterLink to="/preferencias" :title="displayName" class="shrink-0">
+          <img
+            v-if="photo"
+            :src="photo"
+            :alt="displayName"
+            class="size-7 rounded-full ring-1 ring-line transition hover:ring-accent/60"
+            referrerpolicy="no-referrer"
+          />
+          <span v-else class="block size-7 rounded-full bg-surface-2" aria-hidden="true" />
+        </RouterLink>
 
         <button
           type="button"
@@ -84,7 +92,7 @@ async function onSignOut() {
           class="cursor-pointer rounded-full px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-surface-2/70 hover:text-body disabled:cursor-not-allowed disabled:opacity-60"
           @click="onSignOut"
         >
-          Salir
+          {{ t('nav.signOut') }}
         </button>
       </div>
     </div>

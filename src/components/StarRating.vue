@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from '@/lib/i18n'
 
 /**
  * Valoracion de 0 a 5. Se pinta una capa de estrellas vacias y encima otra
@@ -7,6 +8,8 @@ import { computed } from 'vue'
  * sin tener que dibujar medias estrellas.
  */
 const props = withDefaults(defineProps<{ value: number; size?: 'sm' | 'md' }>(), { size: 'sm' })
+
+const { t } = useI18n()
 
 const STARS = 5
 const PATH = 'M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9z'
@@ -19,7 +22,7 @@ const starClass = computed(() => (props.size === 'md' ? 'size-4' : 'size-3.5'))
   <div
     class="relative w-max shrink-0"
     role="img"
-    :aria-label="`Valoración ${value.toFixed(1)} de ${STARS}`"
+    :aria-label="t('card.ratingAria', { value: value.toFixed(1), max: STARS })"
   >
     <div class="flex gap-0.5 text-line-strong">
       <svg
