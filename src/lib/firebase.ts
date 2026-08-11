@@ -1,5 +1,5 @@
 import { initializeApp, type FirebaseOptions } from 'firebase/app'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { getAuth, GithubAuthProvider, GoogleAuthProvider } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const config: FirebaseOptions = {
@@ -29,3 +29,10 @@ export const auth = getAuth(app)
 export const db = getFirestore(app)
 
 export const googleProvider = new GoogleAuthProvider()
+
+/**
+ * GitHub como segundo proveedor. La URL de retorno que hay que registrar en la
+ * OAuth App de GitHub la sirve Firebase:
+ *   https://<authDomain>/__/auth/handler
+ */
+export const githubProvider = new GithubAuthProvider()

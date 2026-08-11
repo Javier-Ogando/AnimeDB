@@ -39,6 +39,8 @@ export interface MediaSummary {
   averageScore?: number | null
   /** Sinopsis en texto plano. Solo la traen los items ya guardados. */
   description?: string | null
+  /** Estado dentro de la lista. Solo lo traen los items ya guardados. */
+  status?: 'pending' | 'watching' | 'done'
   /**
    * Temporadas detectadas en la franquicia, o null si no se han podido
    * determinar. 1 no se usa: si solo hay una, queda en null.

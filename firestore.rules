@@ -47,6 +47,22 @@ service cloud.firestore {
         && get(listPath(listId)).data.ownerUid == request.auth.uid;
     }
 
+    /**
+     * Quien puede escribir en una lista: owner y manager, nunca viewer.
+     *
+     * Las listas creadas antes de los roles no tienen mapa `roles`. En ese caso
+     * se mantiene el comportamiento anterior —cualquier miembro edita— para no
+     * convertir de golpe en solo-lectura los datos que ya existen.
+     */
+    function canEditList(listId) {
+      let list = get(listPath(listId)).data;
+      return isMemberOf(listId) && (
+        list.ownerUid == request.auth.uid ||
+        !('roles' in list) ||
+        list.roles.get(request.auth.uid, 'manager') in ['owner', 'manager']
+      );
+    }
+
     // ---------- users ----------
 
     match /users/{uid} {
@@ -86,7 +102,12 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource == null ||
         resource.data.type == 'community' ||
-        request.auth.uid in resource.data.get('memberUids', [])
+        request.auth.uid in resource.data.get('memberUids', []) ||
+        // Con invitacion abierta, cualquiera puede leer la ficha de la lista:
+        // el invitado necesita ver su nombre ANTES de unirse, y todavia no es
+        // miembro. Solo expone nombre y miembros; el contenido sigue cerrado,
+        // porque items/ exige pertenencia. El listId no es adivinable.
+        resource.data.get('joinOpen', false) == true
       );
 
       // Al crear: te declaras owner y tienes que estar entre los miembros.
@@ -112,10 +133,22 @@ service cloud.firestore {
           && request.resource.data.ownerUid == resource.data.ownerUid
           && request.resource.data.type == resource.data.type
         ) || (
+          // Aceptar una invitacion: el invitado se anade A SI MISMO y entra como
+          // viewer. Se comprueba que memberUids sea exactamente el anterior mas
+          // su uid, y que en roles solo aparezca su clave con ese valor.
           resource.data.get('joinOpen', false) == true
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['memberUids', 'roles'])
           && request.resource.data.memberUids ==
                resource.data.memberUids.concat([request.auth.uid])
+          && request.resource.data.roles.diff(resource.data.get('roles', {}))
+               .affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.roles[request.auth.uid] == 'viewer'
+        ) || (
+          // Un manager puede renombrar la lista, pero no tocar roles.
+          resource.data.get('roles', {}).get(request.auth.uid, '') == 'manager'
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'updatedAt'])
         ) || (
           // Cualquier miembro mueve el contador al anadir o quitar un anime.
           // Sin esta via, en una lista compartida solo el propietario podria
@@ -139,14 +172,14 @@ service cloud.firestore {
         allow read: if isMemberOf(listId);
 
         // Quien anade queda registrado como addedBy y no puede falsearlo.
-        allow create: if isMemberOf(listId)
+        allow create: if canEditList(listId)
           && request.resource.data.addedBy == request.auth.uid;
 
-        // Cualquier miembro puede mover el status (es estado del grupo).
-        allow update: if isMemberOf(listId);
+        // El status es estado del grupo: lo mueve cualquiera que pueda editar.
+        allow update: if canEditList(listId);
 
         // Borrar: quien lo anadio, o el owner de la lista.
-        allow delete: if isMemberOf(listId) && (
+        allow delete: if canEditList(listId) && (
           resource.data.addedBy == request.auth.uid || isOwnerOf(listId)
         );
       }

@@ -26,6 +26,12 @@
   /* contrapunto frio, solo para dar profundidad a los halos */
   --color-ice-400: oklch(0.78 0.07 230);
 
+  /* Estado de un anime en una lista. Fijos en ambos temas: son un codigo de
+     color que el usuario aprende, y no debe cambiar al cambiar de tema. */
+  --color-status-pending: oklch(0.62 0.2 300);
+  --color-status-watching: oklch(0.73 0.17 55);
+  --color-status-done: oklch(0.75 0.16 150);
+
   /* --- movimiento --- */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }

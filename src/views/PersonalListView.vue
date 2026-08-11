@@ -6,6 +6,7 @@ import {
   ensurePersonalList,
   itemToMedia,
   removeAnimeFromList,
+  updateItemStatus,
   watchListItems,
   type ListItem,
 } from '@/lib/lists'
@@ -14,6 +15,7 @@ import AnimeSearchInput from '@/components/AnimeSearchInput.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import type { MediaSummary } from '@/types/anilist'
+import type { ItemStatus } from '@/types/models'
 
 const { user } = useAuth()
 
@@ -66,6 +68,15 @@ async function onAdd(media: MediaSummary) {
   }
 }
 
+async function onStatus(media: MediaSummary, status: ItemStatus) {
+  if (!listId.value || !user.value) return
+  try {
+    await updateItemStatus(listId.value, media.id, status, user.value.uid)
+  } catch (e) {
+    error.value = describe(e as Error)
+  }
+}
+
 async function onRemove(media: MediaSummary) {
   if (!listId.value) return
   try {
@@ -107,8 +118,9 @@ async function onRemove(media: MediaSummary) {
           v-else
           :media="items.map(itemToMedia)"
           empty="Busca un anime arriba y añádelo a tus pendientes."
-          removable
+          manage
           @remove="onRemove"
+          @status="onStatus"
         />
       </div>
     </main>

@@ -1,4 +1,6 @@
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -18,7 +20,14 @@ import {
 } from 'firebase/firestore'
 import { fetchDescription } from '@/lib/anilist'
 import { db } from '@/lib/firebase'
-import type { ListDoc, ListItemDoc, ListType, MediaSnapshot } from '@/types/models'
+import type {
+  ItemStatus,
+  ListDoc,
+  ListItemDoc,
+  ListRole,
+  ListType,
+  MediaSnapshot,
+} from '@/types/models'
 import type { MediaSummary } from '@/types/anilist'
 
 /**
@@ -48,6 +57,7 @@ export async function ensurePersonalList(uid: string): Promise<string> {
       type: 'personal' satisfies ListType,
       ownerUid: uid,
       memberUids: [uid],
+      roles: { [uid]: 'owner' satisfies ListRole },
       itemCount: 0,
       joinOpen: false,
       createdAt: serverTimestamp(),
@@ -91,7 +101,85 @@ export function itemToMedia(item: ListItem): MediaSummary {
     genres: s.genres ?? [],
     averageScore: s.averageScore ?? null,
     description: s.description ?? null,
+    status: item.status ?? 'pending',
   }
+}
+
+/**
+ * Cambia el estado de un anime y mantiene al dia media/{id}.watchedBy.
+ *
+ * Ese campo esta duplicado a proposito: es lo que permite a /general pintar
+ * quien ha visto cada anime sin recorrer todas las listas que lo contienen.
+ */
+export async function updateItemStatus(
+  listId: string,
+  mediaId: number,
+  status: ItemStatus,
+  uid: string,
+): Promise<void> {
+  const batch = writeBatch(db)
+
+  batch.update(doc(db, 'lists', listId, 'items', String(mediaId)), { status })
+
+  // arrayUnion/arrayRemove son idempotentes: da igual si ya estaba o no, y no
+  // hay que leer el array antes para decidir.
+  batch.set(
+    doc(db, 'media', String(mediaId)),
+    { watchedBy: status === 'done' ? arrayUnion(uid) : arrayRemove(uid) },
+    { merge: true },
+  )
+
+  await batch.commit()
+}
+
+/** Renombrar: owner y manager. */
+export async function renameList(listId: string, name: string): Promise<void> {
+  await updateDoc(doc(db, 'lists', listId), {
+    name: name.trim() || 'Lista compartida',
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/** Cambiar el rol de un miembro: solo el owner. */
+export async function setMemberRole(
+  listId: string,
+  targetUid: string,
+  role: ListRole,
+): Promise<void> {
+  await updateDoc(doc(db, 'lists', listId), { [`roles.${targetUid}`]: role })
+}
+
+/** Rol efectivo. Sin mapa de roles (listas anteriores) se asume manager. */
+export function roleOf(list: ListDoc | null, uid: string | undefined): ListRole | null {
+  if (!list || !uid) return null
+  if (!list.memberUids?.includes(uid)) return null
+  if (list.ownerUid === uid) return 'owner'
+  return list.roles?.[uid] ?? 'manager'
+}
+
+export function canEdit(role: ListRole | null): boolean {
+  return role === 'owner' || role === 'manager'
+}
+
+/** Perfiles de varios uids, para pintar avatares. */
+export async function fetchUserProfiles(
+  uids: string[],
+): Promise<Map<string, { displayName: string | null; photoURL: string | null }>> {
+  const unique = [...new Set(uids)].filter(Boolean)
+  const entries = await Promise.all(
+    unique.map(async (uid) => {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid))
+        if (!snap.exists()) return null
+        const data = snap.data() as { displayName?: string | null; photoURL?: string | null }
+        return [uid, { displayName: data.displayName ?? null, photoURL: data.photoURL ?? null }] as const
+      } catch {
+        return null
+      }
+    }),
+  )
+
+  return new Map(entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null))
 }
 
 /**
@@ -297,6 +385,7 @@ export async function createSharedList(
     type: 'shared' satisfies ListType,
     ownerUid: uid,
     memberUids: [uid],
+    roles: { [uid]: 'owner' satisfies ListRole },
     itemCount: 0,
     joinOpen: true,
     createdAt: serverTimestamp(),
@@ -350,8 +439,11 @@ export async function joinList(listId: string, uid: string): Promise<void> {
   if (!list) throw new Error('La lista ya no existe.')
   if (list.memberUids?.includes(uid)) return
 
+  // Se entra como viewer: quien invita decide despues si sube el rol. Las
+  // reglas comprueban que solo se anada a si mismo y con ese rol.
   await updateDoc(doc(db, 'lists', listId), {
     memberUids: [...(list.memberUids ?? []), uid],
+    roles: { ...(list.roles ?? {}), [uid]: 'viewer' satisfies ListRole },
   })
 }
 
