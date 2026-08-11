@@ -1,19 +1,54 @@
 <script setup lang="ts">
 import AnimeCard from './AnimeCard.vue'
+import ItemMenu, { type MenuAction } from './ItemMenu.vue'
+import StatusDot from './StatusDot.vue'
 import type { MediaSummary } from '@/types/anilist'
+import type { ItemStatus } from '@/types/models'
 
 const props = withDefaults(
   defineProps<{
     media: MediaSummary[]
     /** Texto cuando no hay nada que mostrar. */
     empty?: string
-    /** Con esto, cada card muestra un botón de quitar. */
-    removable?: boolean
+    /**
+     * Modo lista: cada card muestra su estado y el menu de opciones. En el
+     * catalogo general se deja en false, porque ahi los animes no pertenecen a
+     * ninguna lista del usuario.
+     */
+    manage?: boolean
   }>(),
-  { empty: 'Todavía no hay nada por aquí.', removable: false },
+  { empty: 'Todavía no hay nada por aquí.', manage: false },
 )
 
-defineEmits<{ remove: [media: MediaSummary] }>()
+const emit = defineEmits<{
+  remove: [media: MediaSummary]
+  status: [media: MediaSummary, status: ItemStatus]
+}>()
+
+/**
+ * Las opciones dependen del estado, para no ofrecer lo que no toca:
+ *   pendiente  -> Seguir
+ *   siguiendo  -> Dejar de seguir · Terminar
+ *   terminado  -> Volver a pendiente
+ */
+function actionsFor(status: ItemStatus): MenuAction[] {
+  const actions: MenuAction[] =
+    status === 'pending'
+      ? [{ id: 'watching', label: 'Seguir' }]
+      : status === 'watching'
+        ? [
+            { id: 'pending', label: 'Dejar de seguir' },
+            { id: 'done', label: 'Terminar' },
+          ]
+        : [{ id: 'pending', label: 'Volver a pendiente' }]
+
+  return [...actions, { id: 'remove', label: 'Eliminar', danger: true }]
+}
+
+function onPick(media: MediaSummary, id: string) {
+  if (id === 'remove') emit('remove', media)
+  else emit('status', media, id as ItemStatus)
+}
 </script>
 
 <template>
@@ -37,34 +72,22 @@ defineEmits<{ remove: [media: MediaSummary] }>()
     </p>
   </div>
 
-  <!-- gap-4 y no gap-3: el boton de quitar sobresale 8 px de la esquina, y con
-       menos hueco pisaria la card vecina. -->
+  <!-- gap-4: los controles sobresalen 8 px de la esquina y con menos hueco
+       pisarian la card vecina. -->
   <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
     <div v-for="item in props.media" :key="item.id" class="relative">
       <AnimeCard :media="item" dense />
 
-      <!-- Fuera de la card a proposito: no es contenido del anime sino una
-           accion sobre el, asi que se superpone en la esquina en vez de ocupar
-           una columna dentro y estrechar el texto. -->
-      <button
-        v-if="props.removable"
-        type="button"
-        class="float-pill absolute -top-2 -right-2 z-10 grid size-7 cursor-pointer place-items-center text-faint transition hover:border-accent/60 hover:text-body"
-        :aria-label="`Quitar ${item.titleRomaji ?? item.titlePreferred}`"
-        @click="$emit('remove', item)"
-      >
-        <svg
-          class="size-3"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="3"
-          stroke-linecap="round"
-          aria-hidden="true"
-        >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
-      </button>
+      <!-- Fuera de la card a proposito: no es contenido del anime sino acciones
+           sobre el, asi que se superponen en la esquina en vez de ocupar una
+           columna dentro y estrechar el texto. -->
+      <div v-if="props.manage" class="absolute -top-2 -right-2 z-10 flex items-center gap-1.5">
+        <StatusDot :status="item.status ?? 'pending'" />
+        <ItemMenu
+          :actions="actionsFor(item.status ?? 'pending')"
+          @pick="(id) => onPick(item, id)"
+        />
+      </div>
     </div>
   </div>
 </template>

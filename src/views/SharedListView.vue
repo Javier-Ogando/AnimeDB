@@ -1,15 +1,23 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useToast } from '@/composables/useToast'
 import {
   addAnimeToList,
+  canEdit,
   createInvite,
+  deleteList,
+  fetchUserProfiles,
   findInviteForList,
   getList,
   inviteUrl,
   itemToMedia,
   removeAnimeFromList,
+  renameList,
+  roleOf,
+  setMemberRole,
+  updateItemStatus,
   watchListItems,
   type ListItem,
   type ListWithId,
@@ -17,11 +25,15 @@ import {
 import AnimeGrid from '@/components/AnimeGrid.vue'
 import AnimeSearchInput from '@/components/AnimeSearchInput.vue'
 import AppHeader from '@/components/AppHeader.vue'
+import ListSettings from '@/components/ListSettings.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import type { MediaSummary } from '@/types/anilist'
+import type { ItemStatus, ListRole } from '@/types/models'
 
 const route = useRoute()
+const router = useRouter()
 const { user } = useAuth()
+const { notify } = useToast()
 
 const listId = String(route.params.listId)
 
@@ -31,27 +43,37 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 
 const link = ref<string | null>(null)
-const isCopied = ref(false)
+const profiles = ref(new Map<string, { displayName: string | null; photoURL: string | null }>())
 
 let unsubscribe: (() => void) | null = null
 
+const myRole = computed(() => roleOf(list.value, user.value?.uid))
+const canWrite = computed(() => canEdit(myRole.value))
+
 function describe(e: Error): string {
   return e.message.includes('permission')
-    ? 'Firestore ha denegado el acceso. Despliega las reglas: npx firebase deploy --only firestore:rules'
-    : 'No se ha podido cargar la lista.'
+    ? 'Firestore ha denegado la operación. Puede que tu rol en esta lista no lo permita.'
+    : 'No se ha podido completar la operación.'
+}
+
+async function loadList() {
+  list.value = await getList(listId)
+  if (list.value?.memberUids?.length) {
+    profiles.value = await fetchUserProfiles(list.value.memberUids)
+  }
 }
 
 async function start() {
   try {
-    list.value = await getList(listId)
+    await loadList()
     if (!list.value) {
       error.value = 'Esta lista no existe o ya no tienes acceso.'
       isLoading.value = false
       return
     }
 
-    // El enlace se reutiliza si ya habia una invitacion viva, para no generar
-    // un token nuevo cada vez que se abre la pantalla.
+    // Se reutiliza la invitacion viva si la hay, para no generar un token nuevo
+    // cada vez que se abre la pantalla.
     const token = await findInviteForList(listId)
     if (token) link.value = inviteUrl(token)
 
@@ -75,44 +97,50 @@ async function start() {
 void start()
 onUnmounted(() => unsubscribe?.())
 
-async function onCopy() {
-  if (!link.value) return
+/** Envoltorio comun: toda accion avisa por toast si falla. */
+async function run(action: () => Promise<void>, ok?: string) {
   try {
-    await navigator.clipboard.writeText(link.value)
-    isCopied.value = true
-    window.setTimeout(() => (isCopied.value = false), 2000)
-  } catch {
-    // Sin permiso de portapapeles el input sigue ahi para copiar a mano.
-    isCopied.value = false
+    await action()
+    if (ok) notify(ok)
+  } catch (e) {
+    notify(describe(e as Error), 'error')
   }
 }
 
-async function onRegenerate() {
-  if (!user.value) return
-  try {
-    const token = await createInvite(listId, user.value.uid)
+const onAdd = (media: MediaSummary) =>
+  run(
+    () => addAnimeToList(listId, media, user.value!.uid),
+    `«${media.titleRomaji ?? media.titlePreferred}» añadido.`,
+  )
+
+const onRemove = (media: MediaSummary) => run(() => removeAnimeFromList(listId, media.id))
+
+const onStatus = (media: MediaSummary, status: ItemStatus) =>
+  run(() => updateItemStatus(listId, media.id, status, user.value!.uid))
+
+const onRename = (name: string) =>
+  run(async () => {
+    await renameList(listId, name)
+    await loadList()
+  }, 'Nombre actualizado.')
+
+const onRole = (uid: string, role: ListRole) =>
+  run(async () => {
+    await setMemberRole(listId, uid, role)
+    await loadList()
+  }, 'Rol actualizado.')
+
+const onRegenerate = () =>
+  run(async () => {
+    const token = await createInvite(listId, user.value!.uid)
     link.value = inviteUrl(token)
-  } catch (e) {
-    error.value = describe(e as Error)
-  }
-}
+  }, 'Enlace nuevo generado.')
 
-async function onAdd(media: MediaSummary) {
-  if (!user.value) return
-  try {
-    await addAnimeToList(listId, media, user.value.uid)
-  } catch (e) {
-    error.value = describe(e as Error)
-  }
-}
-
-async function onRemove(media: MediaSummary) {
-  try {
-    await removeAnimeFromList(listId, media.id)
-  } catch (e) {
-    error.value = describe(e as Error)
-  }
-}
+const onDelete = () =>
+  run(async () => {
+    await deleteList(listId)
+    await router.replace({ name: 'shared-lists' })
+  })
 </script>
 
 <template>
@@ -120,54 +148,36 @@ async function onRemove(media: MediaSummary) {
     <AppHeader />
 
     <main class="mx-auto max-w-6xl px-6 py-10">
-      <PageHeader
-        kicker="Lista compartida"
-        :title="list?.name ?? 'Lista compartida'"
-        :count="items.length"
-        :unit="['título', 'títulos']"
-        :hint="`${list?.memberUids?.length ?? 1} ${(list?.memberUids?.length ?? 1) === 1 ? 'miembro' : 'miembros'} pueden ver y añadir en esta lista.`"
-      />
+      <div class="flex items-start justify-between gap-4">
+        <PageHeader
+          :kicker="list?.name ?? 'Lista compartida'"
+          :count="items.length"
+          :unit="['título', 'títulos']"
+          class="min-w-0 flex-1"
+        />
 
-      <!-- Enlace de invitacion, encima del listado -->
-      <section class="mt-6 rounded-2xl border border-line bg-surface/60 p-4">
-        <p class="text-[11px] tracking-[0.16em] text-faint uppercase">Invitar a alguien</p>
+        <!-- Los ajustes viven aqui y no en un bloque fijo: el enlace de
+             invitacion ocupaba media pantalla para algo que se usa una vez. -->
+        <ListSettings
+          v-if="list"
+          :list="list"
+          :role="myRole"
+          :invite-link="link"
+          :profiles="profiles"
+          :my-uid="user?.uid"
+          @rename="onRename"
+          @role="onRole"
+          @regenerate="onRegenerate"
+          @remove="onDelete"
+        />
+      </div>
 
-        <div v-if="link" class="mt-3 flex flex-wrap items-center gap-2">
-          <input
-            :value="link"
-            readonly
-            class="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2 text-xs text-muted focus:border-accent/60 focus:outline-none"
-            @focus="($event.target as HTMLInputElement).select()"
-          />
-          <button
-            type="button"
-            class="shrink-0 cursor-pointer rounded-full border border-accent/50 px-4 py-2 text-xs font-medium text-accent transition hover:bg-accent/10"
-            @click="onCopy"
-          >
-            {{ isCopied ? '¡Copiado!' : 'Copiar' }}
-          </button>
-        </div>
-
-        <div v-else class="mt-3 flex flex-wrap items-center gap-3">
-          <p class="text-sm text-muted">Esta lista no tiene un enlace activo.</p>
-          <button
-            type="button"
-            class="cursor-pointer rounded-full border border-line px-4 py-2 text-xs font-medium text-body transition hover:border-accent/60"
-            @click="onRegenerate"
-          >
-            Generar enlace
-          </button>
-        </div>
-
-        <p class="mt-3 text-xs leading-relaxed text-faint">
-          Cualquiera con este enlace puede unirse a la lista. Genera uno nuevo si quieres invalidar
-          el anterior.
-        </p>
-      </section>
-
-      <div class="mt-6 flex">
+      <div v-if="canWrite" class="mt-6 flex">
         <AnimeSearchInput @select="onAdd" />
       </div>
+      <p v-else-if="list" class="mt-6 text-xs text-faint">
+        Tu rol en esta lista es solo de lectura.
+      </p>
 
       <p
         v-if="error"
@@ -183,8 +193,9 @@ async function onRemove(media: MediaSummary) {
           v-else
           :media="items.map(itemToMedia)"
           empty="Aún no hay nada en esta lista. Busca un anime arriba."
-          removable
+          :manage="canWrite"
           @remove="onRemove"
+          @status="onStatus"
         />
       </div>
     </main>

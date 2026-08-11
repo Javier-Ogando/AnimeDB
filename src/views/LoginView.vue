@@ -4,12 +4,12 @@ import { useAuth } from '@/composables/useAuth'
 import BrandMark from '@/components/BrandMark.vue'
 import BrandShowcase from '@/components/BrandShowcase.vue'
 
-const { signInWithGoogle, isBusy, error } = useAuth()
+const { signInWithGoogle, signInWithGithub, isBusy, error } = useAuth()
 const route = useRoute()
 const router = useRouter()
 
-async function onSignIn() {
-  await signInWithGoogle()
+async function onSignIn(provider: 'google' | 'github') {
+  await (provider === 'google' ? signInWithGoogle() : signInWithGithub())
   if (!error.value) {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
     await router.replace(redirect)
@@ -45,7 +45,7 @@ async function onSignIn() {
             <span class="text-accent">biblioteca</span>
           </h1>
           <p class="rise mt-4 text-sm leading-relaxed text-muted" style="animation-delay: 60ms">
-            Sin contraseñas. Usamos tu cuenta de Google para saber cuáles son tus listas.
+            Sin contraseñas. Entra con Google o GitHub y recuperamos tus listas.
           </p>
 
           <button
@@ -54,7 +54,7 @@ async function onSignIn() {
             :aria-busy="isBusy"
             class="rise group mt-9 flex w-full cursor-pointer items-center justify-center gap-3 rounded-full border border-line bg-surface/70 px-5 py-3.5 text-sm font-medium transition-all duration-300 hover:border-accent/60 hover:bg-surface-2 hover:shadow-[0_0_32px_-8px] hover:shadow-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-none"
             style="animation-delay: 120ms"
-            @click="onSignIn"
+            @click="onSignIn('google')"
           >
             <svg class="size-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path
@@ -75,6 +75,22 @@ async function onSignIn() {
               />
             </svg>
             <span>{{ isBusy ? 'Conectando…' : 'Continuar con Google' }}</span>
+          </button>
+
+          <button
+            type="button"
+            :disabled="isBusy"
+            :aria-busy="isBusy"
+            class="rise mt-3 flex w-full cursor-pointer items-center justify-center gap-3 rounded-full border border-line bg-surface/70 px-5 py-3.5 text-sm font-medium transition-all duration-300 hover:border-accent/60 hover:bg-surface-2 hover:shadow-[0_0_32px_-8px] hover:shadow-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-none"
+            style="animation-delay: 150ms"
+            @click="onSignIn('github')"
+          >
+            <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 1.5a10.5 10.5 0 0 0-3.32 20.47c.52.1.71-.23.71-.5v-1.8c-2.9.63-3.52-1.4-3.52-1.4-.47-1.2-1.16-1.53-1.16-1.53-.95-.65.07-.64.07-.64 1.05.08 1.6 1.08 1.6 1.08.93 1.6 2.45 1.14 3.05.87.09-.68.36-1.14.66-1.4-2.32-.27-4.76-1.16-4.76-5.15 0-1.14.4-2.07 1.07-2.8-.11-.27-.47-1.33.1-2.78 0 0 .87-.28 2.85 1.07a9.9 9.9 0 0 1 5.19 0c1.98-1.35 2.85-1.07 2.85-1.07.57 1.45.21 2.51.1 2.78.67.73 1.07 1.66 1.07 2.8 0 4-2.45 4.88-4.78 5.14.38.33.71.97.71 1.95v2.89c0 .28.19.61.72.5A10.5 10.5 0 0 0 12 1.5Z"
+              />
+            </svg>
+            <span>{{ isBusy ? 'Conectando…' : 'Continuar con GitHub' }}</span>
           </button>
 
           <p

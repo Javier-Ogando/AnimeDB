@@ -6,7 +6,7 @@ import {
   type User,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
-import { auth, db, googleProvider } from '@/lib/firebase'
+import { auth, db, githubProvider, googleProvider } from '@/lib/firebase'
 
 // Estado global (fuera de la funcion): un unico listener de Firebase para
 // toda la app, no uno por componente que la use.
@@ -69,10 +69,18 @@ onAuthStateChanged(auth, (u) => {
 
 export function useAuth() {
   async function signInWithGoogle(): Promise<void> {
+    return signIn(googleProvider)
+  }
+
+  async function signInWithGithub(): Promise<void> {
+    return signIn(githubProvider)
+  }
+
+  async function signIn(provider: typeof googleProvider | typeof githubProvider): Promise<void> {
     isBusy.value = true
     error.value = null
     try {
-      await signInWithPopup(auth, googleProvider)
+      await signInWithPopup(auth, provider)
     } catch (e) {
       const code = (e as { code?: string }).code ?? ''
       // Cerrar el popup no es un fallo que merezca mensaje en pantalla.
@@ -101,6 +109,7 @@ export function useAuth() {
     error,
     isSignedIn: computed(() => user.value !== null),
     signInWithGoogle,
+    signInWithGithub,
     signOut,
   }
 }
@@ -112,7 +121,10 @@ function describeAuthError(code: string): string {
     case 'auth/unauthorized-domain':
       return 'Este dominio no esta autorizado en Firebase Authentication > Settings > Dominios autorizados.'
     case 'auth/operation-not-allowed':
-      return 'El proveedor de Google no esta habilitado en Firebase Authentication.'
+      return 'Ese proveedor no esta habilitado en Firebase Authentication.'
+    case 'auth/account-exists-with-different-credential':
+      // Mismo correo dado de alta con otro proveedor: Firebase no los une solo.
+      return 'Ya existe una cuenta con ese correo creada con otro proveedor. Entra con el que usaste la primera vez.'
     case 'auth/network-request-failed':
       return 'Sin conexion con Firebase. Revisa tu red.'
     default:

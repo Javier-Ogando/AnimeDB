@@ -19,6 +19,14 @@ export interface UserDoc {
 
 export type ListType = 'personal' | 'community' | 'shared'
 
+/**
+ * Rol dentro de una lista compartida.
+ *   owner   todo, incluido cambiar roles y borrar la lista
+ *   manager anadir/quitar animes, renombrar, invitar
+ *   viewer  solo ver
+ */
+export type ListRole = 'owner' | 'manager' | 'viewer'
+
 /** lists/{listId} */
 export interface ListDoc {
   name: string
@@ -33,6 +41,14 @@ export interface ListDoc {
    * propietario podria modificar la lista y nadie podria aceptar el enlace.
    */
   joinOpen?: boolean
+  /**
+   * Rol por uid. Va en el propio documento y no en una subcoleccion para que las
+   * reglas lo comprueben sin lecturas extra: ya tienen la lista delante.
+   *
+   * Ausente en las listas creadas antes de los roles; en ese caso se aplica el
+   * comportamiento anterior (cualquier miembro puede editar).
+   */
+  roles?: Record<string, ListRole>
   createdAt: Timestamp
   updatedAt: Timestamp
 }
@@ -80,6 +96,12 @@ export interface MediaDoc {
   format: string | null
   episodes: number | null
   seasonYear: number | null
+  /**
+   * Quien ha terminado este anime, en cualquier lista. Desnormalizado a
+   * proposito: sin esto, saber quien lo ha visto exigiria una consulta de grupo
+   * de colecciones por cada anime del catalogo.
+   */
+  watchedBy?: string[]
   updatedAt: Timestamp
 }
 
