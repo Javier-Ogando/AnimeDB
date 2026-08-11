@@ -351,6 +351,35 @@ Y una comprobación que no se puede hacer desde el repositorio: **si las reglas 
 el proyecto de Firebase**. Se despliegan con `npx firebase deploy --only firestore:rules` y, mientras
 no lo estén, todas las pantallas fallan con el mismo aviso y el comando en el mensaje.
 
+## Cadena de suministro de dependencias
+
+El vector habitual del malware en npm son los **scripts de instalación**: un
+`preinstall`/`postinstall` de una dependencia comprometida se ejecuta solo al
+instalar, con los permisos de quien instala. Así funcionó el ataque a la familia
+`keyv`/`cacheable` del 4 de agosto de 2026, que se propagó a más de 400 paquetes.
+
+Este proyecto no depende de esa familia —`flat-cache` y `file-entry-cache` suelen
+entrar a través de ESLint, y aquí el chequeo lo hace `vue-tsc`—, pero la
+protección no depende de esa suerte:
+
+- **Ningún paquete puede ejecutar código al instalarse.** Las dos dependencias
+  que traen `postinstall` están denegadas en el campo `allowScripts` de
+  `package.json`: el de `protobufjs` solo valida un esquema de versiones, y el de
+  `@firebase/util` únicamente actúa si existe la variable `FIREBASE_WEBAPP_CONFIG`
+  (Firebase App Hosting, que no usamos: la configuración entra por `VITE_*`).
+- Con esa lista fijada, **cualquier dependencia nueva que traiga un script de
+  instalación aparece como pendiente** y npm la bloquea hasta revisarla, en vez
+  de ejecutarse sin más.
+- El despliegue usa `npm ci --ignore-scripts`. Ese job tiene acceso a los secrets
+  del repositorio, así que es el peor sitio para ejecutar código de terceros.
+
+Para revisar el estado en cualquier momento:
+
+```bash
+npm approve-scripts --allow-scripts-pending   # qué scripts hay sin revisar
+npm audit                                     # avisos conocidos
+```
+
 ## Licencia
 
 MIT — ver [LICENSE](./LICENSE).

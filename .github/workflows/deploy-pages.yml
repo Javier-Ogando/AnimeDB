@@ -27,7 +27,13 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      # --ignore-scripts: ningun paquete ejecuta codigo al instalarse. Este job
+      # tiene acceso a los secrets del repositorio, asi que es el peor sitio
+      # posible para que se ejecute el postinstall de una dependencia
+      # comprometida — el vector del ataque a la familia keyv de agosto de 2026.
+      # Las dos dependencias con postinstall estan denegadas en package.json y
+      # ninguna hace falta para el build.
+      - run: npm ci --ignore-scripts
 
       - name: Comprobar la configuración de Firebase
         env:
