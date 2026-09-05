@@ -140,7 +140,15 @@ function watchedByLabel(media: MediaSummary): string {
   <!-- gap-4: los controles sobresalen 8 px de la esquina y con menos hueco
        pisarian la card vecina. -->
   <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-    <div v-for="item in props.media" :key="item.id" class="relative">
+    <!--
+      hover/focus-within:z-20 y no solo el z-30 del propio tooltip de
+      GenreChips: esta card es hermana de las demas con z-index auto, asi que
+      sin esto el orden de pintado lo decide el DOM y la card de la fila
+      siguiente tapa el desplegable "+X" de esta, por alto que sea su z-index
+      interno (ver el comentario de mas abajo sobre el mismo problema con
+      ReviewDialog).
+    -->
+    <div v-for="item in props.media" :key="item.id" class="relative hover:z-20 focus-within:z-20">
       <!-- La card entera lleva a su ficha. Los controles de la esquina quedan
            fuera de este enlace a proposito: pulsarlos no debe navegar. -->
       <RouterLink

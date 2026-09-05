@@ -13,6 +13,7 @@ import { db } from '@/lib/firebase'
 import AppHeader from '@/components/AppHeader.vue'
 import GenreChips from '@/components/GenreChips.vue'
 import MediaCover from '@/components/MediaCover.vue'
+import MediaStats from '@/components/MediaStats.vue'
 import ReactionBar from '@/components/ReactionBar.vue'
 import ReviewThread from '@/components/ReviewThread.vue'
 import StarRating from '@/components/StarRating.vue'
@@ -175,6 +176,8 @@ async function onSave() {
             </p>
 
             <GenreChips :genres="media.genres ?? []" :max="6" class="mt-4" />
+
+            <MediaStats :stats="media.stats ?? null" class="mt-4" />
 
             <!-- Las dos valoraciones, una al lado de la otra: es el sentido de
                  tener resenas propias ademas de las de AniList. -->

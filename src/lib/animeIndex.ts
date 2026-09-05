@@ -1,3 +1,4 @@
+import type { AnimeStats } from '@/lib/tagStats'
 import type { MediaSummary } from '@/types/anilist'
 
 /**
@@ -11,12 +12,15 @@ import type { MediaSummary } from '@/types/anilist'
  * memoria para el resto de la sesion.
  */
 
+/** [accion, drama, misterio, ritmo, profundidad], escala 1-10. Ver lib/tagStats.js. */
+type StatsRow = [number, number, number, number, number]
+
 /**
  * [id, preferred, romaji, english, episodios, portada, color, nota, generos,
- *  adulto]
+ *  adulto, stats]
  *
- * Los dos ultimos son opcionales para poder leer indices generados antes de que
- * existieran, en cuyo caso la card se pinta sin estrellas ni chips.
+ * Los ultimos son opcionales para poder leer indices generados antes de que
+ * existieran, en cuyo caso la card se pinta sin estrellas, chips ni stats.
  */
 type IndexRow = [
   number,
@@ -29,6 +33,7 @@ type IndexRow = [
   (number | null)?,
   number[]?,
   (0 | 1)?,
+  (StatsRow | null)?,
 ]
 
 interface IndexFile {
@@ -82,8 +87,15 @@ export function normalizeTerm(value: string): string {
     .trim()
 }
 
+function toStats(row: StatsRow | null | undefined): AnimeStats | null {
+  if (!row) return null
+  const [action, drama, mystery, pacing, depth] = row
+  return { action, drama, mystery, pacing, depth }
+}
+
 function toEntry(row: IndexRow, coverBase: string, genreTable: string[]): Entry {
-  const [id, preferred, romaji, english, episodes, cover, color, score, genreIds, adult] = row
+  const [id, preferred, romaji, english, episodes, cover, color, score, genreIds, adult, stats] =
+    row
 
   const media: MediaSummary = {
     id,
@@ -104,6 +116,7 @@ function toEntry(row: IndexRow, coverBase: string, genreTable: string[]): Entry 
       .map((index) => genreTable[index])
       .filter((genre): genre is string => Boolean(genre)),
     averageScore: score ?? null,
+    stats: toStats(stats),
   }
 
   const haystacks = [preferred, romaji, english]

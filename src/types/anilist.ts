@@ -1,3 +1,14 @@
+import type { AnimeStats } from '@/lib/tagStats'
+
+/** Un tag de AniList, tal como llega de la API. */
+export interface AniListTag {
+  name: string
+  /** Relevancia del tag para este medio, 0-100. */
+  rank: number | null
+  category: string | null
+  isGeneralSpoiler: boolean | null
+}
+
 /** Forma cruda que devuelve la API de AniList (solo los campos que pedimos). */
 export interface AniListMedia {
   id: number
@@ -6,6 +17,8 @@ export interface AniListMedia {
   seasonYear: number | null
   averageScore: number | null
   genres: string[] | null
+  /** Sirve para calcular los coeficientes narrativos, ver lib/tagStats.js. */
+  tags?: AniListTag[] | null
   title: {
     romaji: string | null
     english: string | null
@@ -85,4 +98,10 @@ export interface MediaSummary {
   seasons: number | null
   /** Suma de episodios de las temporadas detectadas, o null. */
   totalEpisodes: number | null
+  /**
+   * Coeficientes narrativos (accion, drama, misterio, ritmo, profundidad),
+   * calculados a partir de generos y tags con computeAnimeStats. null si no
+   * hay señal suficiente para calcularlos.
+   */
+  stats?: AnimeStats | null
 }

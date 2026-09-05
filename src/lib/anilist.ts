@@ -1,3 +1,4 @@
+import { computeAnimeStats } from '@/lib/tagStats'
 import type { AniListChainMedia, AniListMedia, FranchiseChain, MediaSummary } from '@/types/anilist'
 
 const ENDPOINT = 'https://graphql.anilist.co'
@@ -32,6 +33,12 @@ const SEARCH_QUERY = `
         seasonYear
         averageScore
         genres
+        tags {
+          name
+          rank
+          category
+          isGeneralSpoiler
+        }
         title {
           romaji
           english
@@ -87,6 +94,12 @@ const FULL_QUERY = `
       seasonYear
       averageScore
       genres
+      tags {
+        name
+        rank
+        category
+        isGeneralSpoiler
+      }
       title { romaji english userPreferred }
       coverImage { large color }
       description(asHtml: false)
@@ -390,5 +403,6 @@ export function toSummary(media: AniListMedia): MediaSummary {
     // Se rellenan al resolver la franquicia completa (ver nota en SEARCH_QUERY).
     seasons: null,
     totalEpisodes: null,
+    stats: computeAnimeStats(media.genres, media.tags),
   }
 }

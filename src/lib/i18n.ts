@@ -278,6 +278,14 @@ const MESSAGES: Record<Language, Record<string, string>> = {
     'card.statusAria': 'Estado: {status}',
     'card.ratingAria': 'Valoración {value} de {max}',
 
+    'stats.title': 'Perfil narrativo',
+    'stats.action': 'Acción',
+    'stats.drama': 'Drama',
+    'stats.mystery': 'Misterio',
+    'stats.pacing': 'Ritmo',
+    'stats.depth': 'Profundidad',
+    'stats.valueAria': '{label}: {value} de 10',
+
     'search.ariaLabel': 'Buscar un anime en AniList por título en romaji, inglés o preferido',
     'search.placeholder': 'Busca por título: romaji, inglés o preferido…',
     'search.clear': 'Limpiar búsqueda',
@@ -560,6 +568,14 @@ const MESSAGES: Record<Language, Record<string, string>> = {
     'card.statusDone': 'Finished',
     'card.statusAria': 'Status: {status}',
     'card.ratingAria': 'Rated {value} out of {max}',
+
+    'stats.title': 'Narrative profile',
+    'stats.action': 'Action',
+    'stats.drama': 'Drama',
+    'stats.mystery': 'Mystery',
+    'stats.pacing': 'Pacing',
+    'stats.depth': 'Depth',
+    'stats.valueAria': '{label}: {value} out of 10',
 
     'search.ariaLabel': 'Search AniList for an anime by romaji, English or preferred title',
     'search.placeholder': 'Search by title: romaji, English or preferred…',
