@@ -17,6 +17,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { computeAnimeStats } from '../src/lib/tagStats.js'
 
 const ENDPOINT = 'https://graphql.anilist.co'
 const PER_PAGE = 50
@@ -44,6 +45,12 @@ const QUERY = `
         averageScore
         isAdult
         genres
+        tags {
+          name
+          rank
+          category
+          isGeneralSpoiler
+        }
         title { romaji english userPreferred }
         coverImage { large color }
       }
@@ -105,11 +112,13 @@ function toGenreIds(list) {
  * de campo costaria mas de 200 KB de nada.
  *
  *   [id, preferred, romaji, english, episodios, portada, color, nota, generos,
- *    adulto]
+ *    adulto, stats]
  *
  * romaji y english se guardan como null cuando coinciden con preferred, que es
  * el caso de la mayoria, para no duplicar la misma cadena. `nota` es el
- * averageScore de AniList (0-100); el cliente lo pasa a estrellas.
+ * averageScore de AniList (0-100); el cliente lo pasa a estrellas. `stats` son
+ * los 5 coeficientes narrativos calculados por computeAnimeStats a partir de
+ * generos y tags (ver src/lib/tagStats.js); null si no hay señal suficiente.
  */
 function toRow(media) {
   const preferred = media.title.userPreferred ?? media.title.romaji ?? media.title.english
@@ -120,6 +129,8 @@ function toRow(media) {
   // Solo el nombre del fichero: el prefijo va una vez en el JSON. Si algun dia
   // la ruta del CDN cambia, se guarda la URL completa y sigue funcionando.
   const cover = url?.startsWith(COVER_BASE) ? url.slice(COVER_BASE.length) : url
+
+  const stats = computeAnimeStats(media.genres, media.tags)
 
   return [
     media.id,
@@ -133,6 +144,7 @@ function toRow(media) {
     toGenreIds(media.genres),
     // 1/0 y no true/false: en 5000 entradas, "true" cuesta tres bytes mas.
     media.isAdult ? 1 : 0,
+    stats ? [stats.action, stats.drama, stats.mystery, stats.pacing, stats.depth] : null,
   ]
 }
 
@@ -172,6 +184,7 @@ const output = {
     'score',
     'genres',
     'adult',
+    'stats',
   ],
   // Los generos de cada entrada son indices dentro de esta tabla.
   genreTable,

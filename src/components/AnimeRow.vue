@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { formatEpisodes, scoreToStars } from '@/lib/media'
 import GenreChips from './GenreChips.vue'
 import MediaCover from './MediaCover.vue'
+import MediaStats from './MediaStats.vue'
 import StarRating from './StarRating.vue'
 import type { MediaSummary } from '@/types/anilist'
 
@@ -39,12 +40,15 @@ const episodesLabel = computed(() => formatEpisodes(props.media))
              renderiza siempre: con un solo hijo, justify-between alinearia a la
              izquierda y los capitulos dejarian de estar a la derecha. -->
         <div class="flex min-w-0 flex-1 items-center justify-between gap-2">
-          <GenreChips :genres="media.genres ?? []" :max="2" />
+          <GenreChips :genres="media.genres ?? []" :max="3" :show-overflow="false" />
           <span class="shrink-0 text-xs font-medium text-muted tabular-nums">
             {{ episodesLabel }}
           </span>
         </div>
       </div>
+
+      <!-- Coeficientes narrativos, debajo de las etiquetas. -->
+      <MediaStats :stats="media.stats ?? null" dense />
     </div>
 
     <slot name="trailing" />

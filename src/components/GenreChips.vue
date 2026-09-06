@@ -15,10 +15,14 @@ import { translateGenre } from '@/lib/media'
  * comentario de la plantilla). En la ficha, donde hay ancho de sobra y se pintan
  * hasta seis, envolver es lo correcto y por eso es el comportamiento por
  * defecto.
+ *
+ * `showOverflow` desactiva el chip "+X": la fila del buscador prefiere ceder
+ * ese hueco a un chip de categoria real (ver AnimeRow.vue) antes que a un
+ * resumen que hay que abrir para leer.
  */
 const props = withDefaults(
-  defineProps<{ genres: string[]; max?: number; singleLine?: boolean }>(),
-  { max: 3, singleLine: false },
+  defineProps<{ genres: string[]; max?: number; singleLine?: boolean; showOverflow?: boolean }>(),
+  { max: 3, singleLine: false, showOverflow: true },
 )
 
 const { t } = useI18n()
@@ -68,7 +72,7 @@ const allGenresLabel = computed(() => `${t('card.allGenres')}: ${labels.value.jo
       con el propio elemento enfocado.
     -->
     <span
-      v-if="hidden > 0"
+      v-if="hidden > 0 && showOverflow"
       class="group relative shrink-0"
       tabindex="0"
       role="img"
@@ -89,7 +93,10 @@ const allGenresLabel = computed(() => `${t('card.allGenres')}: ${labels.value.jo
         class="absolute top-full left-0 z-30 hidden w-44 max-w-[70vw] pt-1 group-hover:block group-focus-within:block"
         aria-hidden="true"
       >
-        <span class="float-pill block !rounded-2xl p-2.5">
+        <!-- !bg-surface: float-pill es translucido a proposito en el resto de
+             la app (nav, tema...), pero aqui flota sobre otras cards de la
+             rejilla y la transparencia dejaba los generos dificiles de leer. -->
+        <span class="float-pill !bg-surface block !rounded-2xl p-2.5">
           <span class="block text-[9px] tracking-[0.18em] text-faint uppercase">
             {{ t('card.allGenres') }}
           </span>

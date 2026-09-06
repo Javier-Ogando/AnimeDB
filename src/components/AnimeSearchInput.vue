@@ -116,7 +116,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
 
 <template>
   <!-- z-30 sobre las cards de abajo (z-0) para que el desplegable las tape. -->
-  <div ref="root" class="relative z-30 w-full max-w-xl">
+  <div ref="root" class="relative z-30 w-full">
     <div class="relative">
       <svg
         class="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint"
